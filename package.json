@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "mkdir -p .tmp && TMPDIR=$(pwd)/.tmp PORT=5173 NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build:vercel": "vite build",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push"

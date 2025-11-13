@@ -1,4 +1,7 @@
-dist/**
+dist/index.js
+dist/index.js.map
+dist/*.js
+dist/*.map
 !dist/public
 !dist/public/**
 .tmp
