@@ -1,0 +1,46 @@
+Your task is to deliver a 5-minute pitch that communicates and defends your product design choices while demonstrating your low- to mid-fidelity MVP. The goal is to show how your design decisions align with customer insights, core problem validation, and MVP scope.
+
+You will pitch your MVP as if to early stakeholders or advisors, focusing on usability, feasibility, and alignment with your product vision.
+
+*Please note that you will share your own screen for this pitch so that you can switch seamlessly between your slides and demo.
+
+ 
+
+Pitch Requirements
+Your team will prepare and deliver a 5 minute pitch that includes two integrated components:
+
+Design Justification: You will need slides to support this portion of the presentation
+
+Present your reasoning for key product design decisions.
+
+Explain how your user research, user flows, and wireframes informed the MVP’s structure, features, and user experience.
+
+Highlight trade-offs or constraints you considered in developing your low- to mid-fidelity prototype.
+
+MVP Demonstration: You will record a demo of your MVP and submit with this assignment; however, you can demo live or show the recording during your pitch. 
+
+Showcase a working low- or mid-fidelity prototype (e.g., Figma, Canva, clickable mockup, or simple coded prototype).
+
+Walk through the core user flow—the set of interactions that represent your MVP’s main value proposition.
+
+Demonstrate how the product solves the user’s problem and delivers the intended value.
+
+Optionally, highlight areas for future iteration based on anticipated user feedback.
+
+Deliverables
+You should upload your slide deck and demo to this assignment by Sunday, November 2nd at 11:59pm. Teams will give their live pitch in groups on either Monday, November 3rd or Wednesday, November 5th. You'll have 5 minutes for your pitch. You can divide your time in a way that works best for your team. Just keep in mind you should leave enough time to demo the main user flow through your product. Please note that you will share your own screen for this pitch so that you can switch seamlessly between your slides and demo.
+
+Monday, November 3rd: Teams 9-16
+Wednesday, November 5th: Teams 1-8
+Detailed Deliverables:
+
+Pitch Deck: submit as a .pdf file with the naming convention: TeamNumber-DesignMVPPitch.pdf
+Problem & target user summary
+
+Design rationale (with visuals of key screens or flows)
+
+MVP scope and justification
+
+Demo (2-3 minutes): submit your demo recording as an .mp4 file with the naming convention: DesignMVPDemo.mp4 or as a link to an .mp4 on OneDrive (ensure that everyone with the link has access to view the recording)
+
+Demonstrate the MVP in action
