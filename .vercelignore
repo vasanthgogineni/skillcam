@@ -1,5 +1,6 @@
-dist/index.js
-dist/index.js.map
+dist/**
+!dist/public
+!dist/public/**
 .tmp
 node_modules
 

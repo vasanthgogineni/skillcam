@@ -6,6 +6,26 @@
       "dest": "/api/index.ts"
     },
     {
+      "src": "/index\\.js$",
+      "status": 404
+    },
+    {
+      "src": "/dist/index\\.js$",
+      "status": 404
+    },
+    {
+      "src": "/dist/index\\.js\\.map$",
+      "status": 404
+    },
+    {
+      "src": "/dist/(?!public/).*\\.js$",
+      "status": 404
+    },
+    {
+      "src": "/dist/(?!public/).*\\.map$",
+      "status": 404
+    },
+    {
       "src": "/assets/(.*)",
       "dest": "/dist/public/assets/$1"
     },
