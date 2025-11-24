@@ -1,11 +1,10 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, TrendingUp, Clock, CheckCircle, BarChart3, Wrench, Calendar, Loader2 } from "lucide-react";
+import { Upload, TrendingUp, Clock, CheckCircle, BarChart3, Wrench, Calendar, Loader2, ArrowRight, Sparkles } from "lucide-react";
 import type { Submission } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,12 +15,11 @@ interface TraineeDashboardProps {
 }
 
 export default function TraineeDashboard({
-  userName = "Sarah Johnson",
+  userName = "User",
   userId,
   onLogout,
 }: TraineeDashboardProps) {
   const [, setLocation] = useLocation();
-  const [isDark, setIsDark] = useState(false);
 
   const { data: submissions = [], isLoading } = useQuery<Submission[]>({
     queryKey: ["/api/submissions"],
@@ -83,20 +81,26 @@ export default function TraineeDashboard({
   };
 
   return (
-    <div className={isDark ? "dark" : ""}>
-      <div className="min-h-screen bg-background">
-        <Header
-          userName={userName}
-          userRole="trainee"
-          isDark={isDark}
-          onThemeToggle={() => setIsDark(!isDark)}
-          onLogout={onLogout}
-        />
+    <div className="min-h-screen bg-background">
+      <Header
+        userName={userName}
+        userRole="trainee"
+        onLogout={onLogout}
+      />
 
         <main className="max-w-7xl mx-auto px-6 py-8">
+          {/* Welcome Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-heading font-bold mb-2">Trainee Dashboard</h1>
-            <p className="text-muted-foreground">Track your progress and upload new tasks</p>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium text-primary">Welcome back</span>
+            </div>
+            <h1 className="text-3xl font-heading font-bold mb-2">
+              Hello, {userName}!
+            </h1>
+            <p className="text-muted-foreground">
+              Track your progress, upload new tasks, and get AI-powered feedback on your skills.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -119,19 +123,24 @@ export default function TraineeDashboard({
             {actionCards.map((card) => (
               <Card
                 key={card.title}
-                className="p-6 hover-elevate cursor-pointer"
+                className="group hover:shadow-md transition-all duration-200 cursor-pointer border-2 hover:border-primary/20"
                 onClick={card.onClick}
                 data-testid={card.testId}
               >
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
-                    {card.icon}
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                        {card.icon}
+                      </div>
+                      <div>
+                        <h3 className="font-heading font-semibold mb-1">{card.title}</h3>
+                        <p className="text-sm text-muted-foreground">{card.description}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                   </div>
-                  <div>
-                    <h3 className="font-heading font-semibold mb-1">{card.title}</h3>
-                    <p className="text-sm text-muted-foreground">{card.description}</p>
-                  </div>
-                </div>
+                </CardContent>
               </Card>
             ))}
           </div>
@@ -211,7 +220,6 @@ export default function TraineeDashboard({
             </div>
           )}
         </main>
-      </div>
     </div>
   );
 }

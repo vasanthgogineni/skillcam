@@ -1,9 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/lib/theme";
 import {
   Video,
   ClipboardList,
@@ -15,10 +23,18 @@ import {
   ArrowRight,
   Moon,
   Sun,
+  CheckCircle2,
+  TrendingUp,
+  ShieldCheck,
+  Play,
+  BarChart3,
+  Settings,
+  User,
+  Pause,
 } from "lucide-react";
 
 export default function LandingPage() {
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, setTheme } = useTheme();
   const { toast } = useToast();
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
@@ -27,16 +43,40 @@ export default function LandingPage() {
   >("idle");
 
   const problemInsights = [
-    "Trainees hesitate to log hours on expensive equipment, so the first real job often doubles as on-the-job training.",
-    "Trainers juggle full bays and compliance paperwork, leaving little time for consistent, actionable coaching.",
-    "Employers still see two to three months of ramp-up after hiring “certified” workers.",
-    "Seventeen discovery interviews all pointed to the same gap: no objective, real-time signal on performance.",
+    {
+      title: "Hesitation to Practice",
+      description: "Trainees avoid logging hours on expensive equipment, meaning the first real job often doubles as on-the-job training."
+    },
+    {
+      title: "Overwhelmed Trainers",
+      description: "Trainers juggle full bays and compliance paperwork, leaving little time for consistent, actionable coaching."
+    },
+    {
+      title: "Slow Ramp-up",
+      description: "Employers still see two to three months of ramp-up after hiring “certified” workers."
+    },
+    {
+      title: "Subjective Feedback",
+      description: "Discovery interviews point to the same gap: no objective, real-time signal on performance."
+    }
   ];
 
   const solutionHighlights = [
-    "SkillCam captures every repetition and delivers corrective cues in seconds.",
-    "Computer vision spots posture, tooling, and sequencing errors before they calcify into bad habits.",
-    "Trainers stay in charge—AI handles the tape review while coaches add human nuance.",
+    {
+      id: "item-1",
+      title: "Real-time AI Feedback",
+      content: "SkillCam captures every repetition and delivers corrective cues in seconds. Computer vision spots posture, tooling, and sequencing errors immediately."
+    },
+    {
+      id: "item-2",
+      title: "Consistent Benchmarking",
+      content: "Every upload is scored against the same gold standard, giving trainers and employers a shared, objective dashboard for readiness."
+    },
+    {
+      id: "item-3",
+      title: "Trainer-Augmented Coaching",
+      content: "Trainers stay in charge. AI handles the tedious tape review while coaches add human nuance with timestamped comments and guidance."
+    }
   ];
 
   const audienceSegments = [
@@ -59,27 +99,6 @@ export default function LandingPage() {
         "Employers and workforce programs measured on job readiness and throughput.",
     },
   ];
-
-  const featureHighlights = [
-    {
-      icon: <Sparkles className="h-6 w-6 text-primary" />,
-      title: "Real-time corrections",
-      description: "AI flags mistakes mid-rep and suggests the next best adjustment while the learner is still in motion.",
-    },
-    {
-      icon: <Gauge className="h-6 w-6 text-primary" />,
-      title: "Consistent benchmarks",
-      description: "Every upload is scored against the same standard, giving trainers and employers a shared dashboard.",
-    },
-    {
-      icon: <ClipboardList className="h-6 w-6 text-primary" />,
-      title: "Trainer-first workflows",
-      description: "Timestamped clips and suggested comments help coaches respond faster without losing their voice.",
-    },
-  ];
-
-  const primaryFeature = featureHighlights[0];
-  const secondaryFeatures = featureHighlights.slice(1);
 
   const handleWaitlistSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -150,277 +169,410 @@ export default function LandingPage() {
     }
   };
 
+  const toggleTheme = () => {
+    setTheme(isDark ? "light" : "dark");
+  };
+
   return (
-    <div className={isDark ? "dark" : ""}>
-      <div className="min-h-screen bg-background">
-        <header className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-                <Video className="h-5 w-5 text-primary-foreground" />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Header */}
+      <header className="border-b sticky top-0 bg-background/80 backdrop-blur-md z-50">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 group cursor-pointer">
+            <div className="relative h-9 w-9">
+              <div className="absolute inset-0 bg-primary rounded-lg transform rotate-3 group-hover:rotate-6 transition-transform"></div>
+              <div className="absolute inset-0 bg-background border-2 border-primary rounded-lg flex items-center justify-center -rotate-3 group-hover:-rotate-6 transition-transform">
+                <Video className="h-5 w-5 text-primary" />
               </div>
-              <span className="text-xl font-heading font-semibold">SkillCam</span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsDark(!isDark)}
-              data-testid="button-theme-toggle"
-            >
-              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
+            <span className="text-xl font-heading font-bold tracking-tight ml-1">SkillCam</span>
           </div>
-        </header>
-
-        <main>
-          <section className="relative overflow-hidden">
-            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-sky-100/50 via-background to-primary/10 dark:from-sky-500/20 dark:via-slate-900/70 dark:to-indigo-900/30" />
-            <div className="max-w-7xl mx-auto px-6 py-24 text-center relative">
-              <h1 className="text-5xl md:text-6xl font-heading font-bold mb-4 max-w-3xl mx-auto text-foreground">
-                SkillCam keeps every rep on track.
-              </h1>
-              <p className="text-lg text-muted-foreground dark:text-slate-100 mb-10 max-w-2xl mx-auto">
-                Instant coaching, faster corrections, and trainer-approved metrics so emerging talent becomes shop-floor ready in weeks, not months.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-4">
-                <Button
-                  asChild
-                  size="lg"
-                  className="text-base"
-                  data-testid="button-cta-waitlist"
-                >
-                  <a href="#waitlist">
-                    Join the beta waitlist
-                    <ArrowRight className="h-5 w-5 ml-2" />
-                  </a>
+          <div className="flex items-center gap-4">
+            <nav className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground">
+              <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+              <a href="#how-it-works" className="hover:text-foreground transition-colors">How it Works</a>
+              <a href="#audience" className="hover:text-foreground transition-colors">For Trainers</a>
+            </nav>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="rounded-full"
+                aria-label="Toggle theme"
+              >
+                {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              <Link href="/login">
+                <Button size="sm" variant="outline" className="hidden sm:flex">
+                  Log in
                 </Button>
-                <Link href="/login">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="text-base"
-                    data-testid="button-see-demo"
-                  >
-                    Coach with SkillCam
-                  </Button>
-                </Link>
+              </Link>
+              <Button asChild size="sm">
+                <a href="#waitlist">Get Access</a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="relative overflow-hidden pt-20 pb-32 lg:pt-32 lg:pb-40">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-background to-background opacity-50"></div>
+          <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
+            <Badge variant="secondary" className="mb-6 px-4 py-1.5 text-sm font-medium rounded-full border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors cursor-default">
+              <Sparkles className="w-4 h-4 mr-2 inline-block" />
+              Now accepting beta partners
+            </Badge>
+            <h1 className="text-5xl md:text-7xl font-heading font-bold tracking-tight mb-6 max-w-4xl mx-auto text-foreground">
+              SkillCam keeps every rep on track.
+            </h1>
+            <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+              Instant coaching, faster corrections, and trainer-approved metrics so emerging talent becomes shop-floor ready in weeks, not months.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
+              <Button asChild size="lg" className="text-lg px-8 h-14 rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
+                <a href="#waitlist">
+                  Join the beta waitlist
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </a>
+              </Button>
+              <Link href="/login">
+                <Button size="lg" variant="outline" className="text-lg px-8 h-14 rounded-full bg-background/50 backdrop-blur-sm">
+                  Coach with SkillCam
+                </Button>
+              </Link>
+            </div>
+            
+            {/* Detailed Dashboard Mockup */}
+            <div className="mx-auto max-w-5xl rounded-xl border bg-card/50 backdrop-blur shadow-2xl overflow-hidden">
+              <div className="bg-muted/50 border-b px-4 py-3 flex items-center gap-2">
+                 <div className="flex gap-1.5">
+                   <div className="w-3 h-3 rounded-full bg-red-400/80" />
+                   <div className="w-3 h-3 rounded-full bg-amber-400/80" />
+                   <div className="w-3 h-3 rounded-full bg-emerald-400/80" />
+                 </div>
+                 <div className="ml-4 text-xs text-muted-foreground font-mono bg-background/50 px-2 py-0.5 rounded">skillcam-dashboard.app</div>
+              </div>
+              <div className="grid grid-cols-[60px_1fr_280px] h-[400px] bg-background/95">
+                {/* Left Sidebar */}
+                <div className="border-r bg-muted/10 flex flex-col items-center py-4 gap-6">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary"><Video className="w-5 h-5" /></div>
+                  <div className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><BarChart3 className="w-5 h-5" /></div>
+                  <div className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><Users2 className="w-5 h-5" /></div>
+                  <div className="mt-auto p-2 rounded-lg hover:bg-muted text-muted-foreground"><Settings className="w-5 h-5" /></div>
+                </div>
+
+                {/* Main Video Area */}
+                <div className="relative bg-black/90 flex items-center justify-center overflow-hidden group">
+                   {/* Grid overlay */}
+                   <div className="absolute inset-0 opacity-20" 
+                        style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                   </div>
+                   
+                   {/* Bounding box mock */}
+                   <div className="absolute border-2 border-emerald-500 w-48 h-64 rounded bg-emerald-500/10 flex flex-col justify-between p-2 animate-pulse">
+                      <div className="bg-emerald-500 text-black text-[10px] font-bold px-1 self-start rounded-sm">POSTURE: GOOD</div>
+                   </div>
+                   
+                   <div className="h-16 w-16 rounded-full bg-white/10 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-white/20 transition-all">
+                     <Play className="h-8 w-8 text-white ml-1" />
+                   </div>
+
+                   {/* Video Controls */}
+                   <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/80 to-transparent flex items-end px-4 pb-3 gap-4">
+                      <Pause className="text-white w-4 h-4" />
+                      <div className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
+                        <div className="h-full w-1/3 bg-primary"></div>
+                      </div>
+                      <span className="text-white text-xs font-mono">00:12 / 00:45</span>
+                   </div>
+                </div>
+
+                {/* Right Analysis Panel */}
+                <div className="border-l bg-card p-4 flex flex-col gap-4">
+                   <div>
+                     <h3 className="text-sm font-semibold mb-1">Session Analysis</h3>
+                     <p className="text-xs text-muted-foreground">Today, 10:42 AM</p>
+                   </div>
+                   
+                   <div className="space-y-3">
+                      <div className="p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20">
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-xs font-semibold">Posture Correct</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Maintained proper stance throughout the welding sequence.</p>
+                      </div>
+                      
+                      <div className="p-3 rounded-lg border bg-amber-500/5 border-amber-500/20">
+                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
+                          <Target className="w-4 h-4" />
+                          <span className="text-xs font-semibold">Angle Deviation</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Torch angle drifted 15° at the 12s mark. Corrective feedback sent.</p>
+                      </div>
+                   </div>
+
+                   <div className="mt-auto">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="text-xs font-medium">Overall Score</span>
+                        <span className="text-xl font-bold text-primary">88%</span>
+                      </div>
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary w-[88%] rounded-full"></div>
+                      </div>
+                   </div>
+                </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className="relative py-20">
-            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-100/40 via-background to-transparent dark:from-slate-900/60 dark:via-indigo-950/80 dark:to-transparent" />
-            <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        {/* Problem & Solution */}
+        <section id="how-it-works" className="py-24 bg-muted/30">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid md:grid-cols-2 gap-16 items-start">
               <div>
                 <h2 className="text-3xl font-heading font-bold mb-6">
-                  A coaching loop built around every rep
+                  The gap between "certified" and "ready"
                 </h2>
-                <ul className="space-y-4">
-                  {solutionHighlights.map((item, index) => (
-                    <li key={item} className="flex gap-3" data-testid={`solution-item-${index}`}>
-                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <div className="h-2 w-2 rounded-full bg-primary" />
+                <p className="text-lg text-muted-foreground mb-8">
+                  Training programs are under pressure to produce more skilled workers faster, but traditional methods struggle to scale personalized feedback.
+                </p>
+                <div className="space-y-6">
+                  {problemInsights.map((item, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="h-6 w-6 rounded-full bg-destructive/10 flex items-center justify-center">
+                          <div className="h-2 w-2 rounded-full bg-destructive" />
+                        </div>
                       </div>
-                      <p className="text-base text-muted-foreground dark:text-slate-200">{item}</p>
-                    </li>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{item.title}</h3>
+                        <p className="text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
                   ))}
-                </ul>
-              </div>
-              <div className="bg-background/95 dark:bg-slate-900/75 border border-primary/10 dark:border-primary/40 rounded-2xl p-12 flex items-center justify-center shadow-xl shadow-primary/10 backdrop-blur">
-                <div className="text-center">
-                  <div className="h-32 w-32 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Video className="h-16 w-16 text-primary" />
-                  </div>
-                  <p className="text-sm text-muted-foreground dark:text-slate-100">
-                    Clean industrial neutrals, purposeful accents, and data-forward layouts match the precision of modern training labs.
-                  </p>
                 </div>
               </div>
+              
+              <div className="bg-card border rounded-2xl p-8 shadow-sm">
+                 <div className="mb-6">
+                   <Badge variant="outline" className="mb-2">The Solution</Badge>
+                   <h3 className="text-2xl font-bold">A coaching loop built around every rep</h3>
+                 </div>
+                 <Accordion type="single" collapsible defaultValue="item-1" className="w-full">
+                  {solutionHighlights.map((item) => (
+                    <AccordionItem key={item.id} value={item.id}>
+                      <AccordionTrigger className="text-lg font-medium hover:no-underline hover:text-primary text-left">
+                        {item.title}
+                      </AccordionTrigger>
+                      <AccordionContent className="text-muted-foreground text-base leading-relaxed">
+                        {item.content}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className="bg-muted/10 dark:bg-slate-900/60 py-20">
-            <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-3xl font-heading font-bold mb-8 text-center">
-                Built for the people shaping the skilled workforce
+        {/* Audience Segments */}
+        <section id="audience" className="py-24">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">
+                Built for the people shaping the workforce
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {audienceSegments.map((audience) => (
-                  <Card
-                    key={audience.title}
-                    className="p-6 space-y-3 border border-primary/10 dark:border-slate-700/70 bg-background/95 dark:bg-slate-900/80 shadow-lg shadow-primary/10"
-                  >
-                    <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Whether you're training the next generation or mastering a trade yourself, SkillCam adapts to your workflow.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-8">
+              {audienceSegments.map((audience) => (
+                <Card key={audience.title} className="bg-card hover:shadow-lg transition-shadow border-primary/10">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 text-primary">
                       {audience.icon}
                     </div>
-                    <h3 className="text-lg font-heading font-semibold">{audience.title}</h3>
-                    <p className="text-sm text-muted-foreground dark:text-slate-200 leading-relaxed">
+                    <CardTitle>{audience.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed">
                       {audience.description}
                     </p>
-                  </Card>
-                ))}
-              </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </section>
-
-          {primaryFeature && (
-            <section className="relative py-20 bg-gradient-to-br from-sky-100/60 via-primary/10 to-emerald-100/50 dark:from-slate-900/70 dark:via-sky-900/40 dark:to-emerald-900/40">
-              <div
-                className="absolute inset-0 -z-10 opacity-60 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.35),_transparent_55%)] dark:opacity-50"
-                aria-hidden="true"
-              />
-              <div className="max-w-7xl mx-auto px-6">
-                <h2 className="text-3xl font-heading font-bold text-center mb-12">
-                  What makes SkillCam different
-                </h2>
-                <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr] items-stretch">
-                  <Card
-                    className="relative overflow-hidden p-8 lg:p-10 bg-background/95 dark:bg-slate-900/80 border border-primary/20 dark:border-primary/40 shadow-xl shadow-primary/25"
-                    data-testid="core-feature-0"
-                  >
-                    <div
-                      className="absolute -top-20 -right-16 h-48 w-48 rounded-full bg-primary/30 blur-3xl"
-                      aria-hidden="true"
-                    />
-                    <div
-                      className="absolute -bottom-28 -left-10 h-44 w-44 rounded-full bg-emerald-300/40 blur-3xl dark:bg-emerald-400/30"
-                      aria-hidden="true"
-                    />
-                    <div className="relative space-y-4">
-                      <div className="h-12 w-12 rounded-xl bg-white/80 dark:bg-slate-800/90 flex items-center justify-center shadow-sm">
-                        {primaryFeature.icon}
-                      </div>
-                      <h3 className="text-2xl font-heading font-semibold">
-                        {primaryFeature.title}
-                      </h3>
-                      <p className="text-base text-muted-foreground dark:text-slate-200 leading-relaxed">
-                        {primaryFeature.description}
-                      </p>
-                    </div>
-                  </Card>
-                  <div className="grid gap-6">
-                    {secondaryFeatures.map((feature, index) => (
-                      <Card
-                        key={feature.title}
-                        className="p-6 bg-background/95 dark:bg-slate-900/80 border border-white/30 dark:border-slate-800/60 shadow-lg shadow-primary/10 backdrop-blur"
-                        data-testid={`core-feature-${index + 1}`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="h-10 w-10 rounded-lg bg-primary/15 dark:bg-primary/25 flex items-center justify-center">
-                            {feature.icon}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-heading font-semibold mb-2">
-                              {feature.title}
-                            </h3>
-                            <p className="text-sm text-muted-foreground dark:text-slate-200 leading-relaxed">
-                              {feature.description}
-                            </p>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section
-            id="why-skillcam"
-            className="py-20 bg-gradient-to-br from-primary/5 via-background to-background dark:from-slate-900/40 dark:via-background"
-          >
-            <div className="max-w-7xl mx-auto px-6">
-              <h2 className="text-3xl font-heading font-bold text-center mb-12">
-                Why training teams are asking for SkillCam
-              </h2>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                {problemInsights.map((statement, index) => (
-                  <li
-                    key={statement}
-                    className="rounded-2xl border border-primary/10 bg-background/95 p-6 shadow-lg shadow-primary/5 backdrop-blur dark:border-primary/20"
-                    data-testid={`problem-item-${index}`}
-                  >
-                    <p className="text-base leading-relaxed text-muted-foreground dark:text-slate-200">
-                      {statement}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section
-            id="waitlist"
-            className="bg-primary text-primary-foreground py-20"
-          >
-            <div className="max-w-4xl mx-auto px-6 text-center">
-              <h2 className="text-3xl font-heading font-bold mb-4">
-                Bring SkillCam to your shop floor
-              </h2>
-              <p className="text-lg mb-10 opacity-90 dark:text-slate-100">
-                We’re onboarding a limited cohort of labs and apprenticeship programs. Reserve your spot and help shape the coaching tools you’ll rely on next semester.
-              </p>
-              <form
-                onSubmit={handleWaitlistSubmit}
-                className="flex flex-col justify-center gap-4 md:flex-row"
-              >
-                <Input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="you@program.org"
-                  value={waitlistEmail}
-                  onChange={(event) => {
-                    setWaitlistEmail(event.target.value);
-                    if (waitlistResult !== "idle") {
-                      setWaitlistResult("idle");
-                    }
-                  }}
-                  disabled={isSubmittingWaitlist}
-                  className="h-12 bg-primary-foreground/10 dark:bg-slate-900/60 text-primary-foreground dark:text-primary-foreground placeholder:text-primary-foreground/70 dark:placeholder:text-primary-foreground/60 md:w-80"
-                  aria-label="Email address"
-                  required
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  variant="secondary"
-                  className="text-base min-w-[200px]"
-                  data-testid="button-cta-footer"
-                  disabled={isSubmittingWaitlist}
-                >
-                  {isSubmittingWaitlist ? "Joining..." : "Join the beta waitlist"}
-                  {!isSubmittingWaitlist && <ArrowRight className="h-5 w-5 ml-2" />}
-                </Button>
-              </form>
-              <div className="mt-4 min-h-[1.5rem]" aria-live="polite">
-                {waitlistResult === "success" && (
-                  <p className="text-sm text-emerald-100">
-                    Thanks for joining—we’ll be in touch with onboarding details soon.
-                  </p>
-                )}
-                {waitlistResult === "duplicate" && (
-                  <p className="text-sm text-amber-100">
-                    You’re already on the list. Keep an eye on your inbox for updates.
-                  </p>
-                )}
-                {waitlistResult === "error" && (
-                  <p className="text-sm text-red-100">
-                    We couldn’t save that email just now. Please try again in a moment.
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <footer className="border-t py-8">
-          <div className="max-w-7xl mx-auto px-6 text-center text-sm text-muted-foreground">
-            <p>© 2024 SkillCam. AI-Powered Skill Training Evaluation.</p>
           </div>
-        </footer>
-      </div>
+        </section>
+
+        {/* Features Grid */}
+        <section id="features" className="py-24 bg-primary/5 relative overflow-hidden">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-background/50 via-transparent to-transparent"></div>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-16">
+               <h2 className="text-3xl md:text-4xl font-heading font-bold mb-4">What makes SkillCam different</h2>
+               <p className="text-muted-foreground text-lg">Features designed for the realities of the shop floor.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+               {/* Feature 1 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <Sparkles className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Real-time Corrections</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">AI flags mistakes mid-rep and suggests the next best adjustment while the learner is still in motion.</p>
+                 </CardContent>
+               </Card>
+
+               {/* Feature 2 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <Gauge className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Consistent Benchmarks</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">Every upload is scored against the same standard, giving trainers and employers a shared dashboard.</p>
+                 </CardContent>
+               </Card>
+
+               {/* Feature 3 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <ClipboardList className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Trainer-first Workflows</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">Timestamped clips and suggested comments help coaches respond faster without losing their voice.</p>
+                 </CardContent>
+               </Card>
+               
+               {/* Feature 4 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <TrendingUp className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Progress Tracking</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">Visualize improvement over time with detailed analytics on speed, accuracy, and technique.</p>
+                 </CardContent>
+               </Card>
+
+               {/* Feature 5 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <ShieldCheck className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Safety First</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">Automatically detect safety violations and PPE compliance to ensure a safe training environment.</p>
+                 </CardContent>
+               </Card>
+               
+               {/* Feature 6 */}
+               <Card className="bg-background/60 backdrop-blur border-primary/10">
+                 <CardHeader>
+                    <Video className="h-8 w-8 text-primary mb-2" />
+                    <CardTitle>Video Library</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <p className="text-muted-foreground">Build a library of best-practice demonstrations and common mistakes for trainees to review.</p>
+                 </CardContent>
+               </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Waitlist Section */}
+        <section id="waitlist" className="py-32">
+          <div className="max-w-3xl mx-auto px-6 text-center">
+            <Card className="bg-primary text-primary-foreground border-none overflow-hidden relative">
+               {/* Decorative background elements */}
+               <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')]"></div>
+               <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
+               
+               <CardContent className="pt-12 pb-12 relative z-10">
+                  <h2 className="text-3xl md:text-4xl font-heading font-bold mb-6">
+                    Bring SkillCam to your shop floor
+                  </h2>
+                  <p className="text-primary-foreground/90 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
+                    We’re onboarding a limited cohort of labs and apprenticeship programs. Reserve your spot and help shape the coaching tools you’ll rely on next semester.
+                  </p>
+
+                  <form
+                    onSubmit={handleWaitlistSubmit}
+                    className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto"
+                  >
+                    <Input
+                      type="email"
+                      placeholder="you@program.org"
+                      value={waitlistEmail}
+                      onChange={(e) => {
+                        setWaitlistEmail(e.target.value);
+                        if (waitlistResult !== "idle") setWaitlistResult("idle");
+                      }}
+                      disabled={isSubmittingWaitlist}
+                      className="bg-background/90 text-foreground placeholder:text-muted-foreground border-transparent focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+                      required
+                    />
+                    <Button 
+                      type="submit" 
+                      size="lg" 
+                      variant="secondary" 
+                      disabled={isSubmittingWaitlist}
+                      className="font-semibold"
+                    >
+                      {isSubmittingWaitlist ? "Joining..." : "Join Beta"}
+                      {!isSubmittingWaitlist && <ArrowRight className="ml-2 h-4 w-4" />}
+                    </Button>
+                  </form>
+
+                  <div className="mt-6 min-h-[20px]">
+                    {waitlistResult === "success" && (
+                      <div className="flex items-center justify-center gap-2 text-emerald-200 font-medium animate-in fade-in slide-in-from-bottom-2">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span>Thanks! We'll be in touch soon.</span>
+                      </div>
+                    )}
+                    {waitlistResult === "duplicate" && (
+                      <p className="text-amber-200 font-medium">You’re already on the list!</p>
+                    )}
+                    {waitlistResult === "error" && (
+                      <p className="text-red-200 font-medium">Something went wrong. Please try again.</p>
+                    )}
+                  </div>
+               </CardContent>
+            </Card>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t py-12 bg-muted/20">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
+              <Video className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <span className="font-heading font-semibold">SkillCam</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} SkillCam. AI-Powered Skill Training Evaluation.
+          </p>
+          <div className="flex gap-6">
+             <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Privacy</a>
+             <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Terms</a>
+             <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Contact</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

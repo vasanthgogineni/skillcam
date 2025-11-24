@@ -1,26 +1,59 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 import {
-  insertUserSchema,
-  insertSubmissionSchema,
   insertAIEvaluationSchema,
-  insertTrainerFeedbackSchema,
   insertWaitlistEntrySchema,
 } from "@shared/schema";
-import bcrypt from "bcrypt";
+import { createClient } from "@supabase/supabase-js";
 
-// Authentication middleware
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: "Not authenticated" });
+const supabaseUrl = process.env.SUPABASE_URL || "https://yrdmimdkhsdzqjjdajvv.supabase.co";
+const supabaseKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyZG1pbWRraHNkenFqamRhanZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MzgxMjksImV4cCI6MjA3OTUxNDEyOX0.gKCFOG9qMkBKal0RwUZohP8jsdSqWioDU2zx8Jw_JC4";
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "No authorization header" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    let dbUser = await storage.getUser(user.id);
+
+    if (!dbUser) {
+      // Fallback creation if trigger didn't fire or race condition
+      console.log("User not found in DB, creating...", user.id);
+      dbUser = await storage.createUser({
+        id: user.id,
+        email: user.email!,
+        role: (user.user_metadata?.role as "trainee" | "trainer") || "trainee",
+        displayName: user.user_metadata?.display_name,
+      });
+    }
+
+    (req as any).user = {
+      userId: dbUser.id,
+      role: dbUser.role,
+      username: dbUser.email
+    };
+
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-  next();
 }
 
-// Role check middleware
 function requireRole(role: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (req.session.role !== role) {
+    const user = (req as any).user;
+    if (!user || user.role !== role) {
       return res.status(403).json({ error: "Forbidden" });
     }
     next();
@@ -33,8 +66,6 @@ export function registerRoutes(app: Express) {
   app.post("/api/waitlist", async (req: Request, res: Response) => {
     try {
       const waitlistInput = waitlistInputSchema.parse(req.body);
-
-      // Trim inputs
       const organization = waitlistInput.organization?.trim();
       const roleFocus = waitlistInput.roleFocus?.trim();
 
@@ -59,99 +90,48 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Auth routes
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
+  app.get("/api/users/me", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { username, password, role: requestedRole } = req.body;
-      
-      // Allow users to register as trainee or trainer
-      const role = requestedRole === "trainer" ? "trainer" : "trainee";
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already exists" });
-      }
+      const authUser = (req as any).user;
+      const user = await storage.getUser(authUser.userId);
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-      
-      // Create user
-      const user = await storage.createUser({
-        username,
-        password: hashedPassword,
-        role,
-      });
-
-      // Set session
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role;
-
-      // Don't send password back
-      const { password: _, createdAt, ...userResponse } = user;
-      res.json(userResponse);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
-    try {
-      const { username, password } = req.body;
-      
-      const user = await storage.getUserByUsername(username);
       if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(404).json({ error: "User not found" });
       }
 
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-
-      // Set session
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role;
-
-      const { password: _, createdAt, ...userResponse } = user;
-      res.json(userResponse);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/auth/logout", (req: Request, res: Response) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Failed to logout" });
-      }
-      res.json({ success: true });
-    });
-  });
-
-  app.get("/api/auth/me", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) {
-        req.session.destroy(() => {});
-        return res.status(401).json({ error: "User not found" });
-      }
-      const { password: _, createdAt, ...userResponse } = user;
-      res.json(userResponse);
+      res.json(user);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Submission routes
+  app.patch("/api/users/me", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const authUser = (req as any).user;
+      const { role } = req.body;
+
+      if (role && !["trainee", "trainer"].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      if (role && role !== authUser.role) {
+        await storage.updateUserRole(authUser.userId, role);
+      }
+
+      const user = await storage.getUser(authUser.userId);
+      res.json(user);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Removed /api/users/sync as it's no longer needed with Supabase Auth triggers/middleware fallback
+
   app.get("/api/submissions", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Trainees can only see their own submissions
-      // Trainers can see all submissions
-      if (req.session.role === "trainee") {
-        const submissions = await storage.getSubmissionsByUser(req.session.userId!);
+      const authUser = (req as any).user;
+      if (authUser.role === "trainee") {
+        const submissions = await storage.getSubmissionsByUser(authUser.userId);
         res.json(submissions);
       } else {
         const submissions = await storage.getAllSubmissions();
@@ -164,14 +144,14 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/submissions/:id", requireAuth, async (req: Request, res: Response) => {
     try {
+      const authUser = (req as any).user;
       const submission = await storage.getSubmission(req.params.id);
       
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
 
-      // Check ownership for trainees
-      if (req.session.role === "trainee" && submission.userId !== req.session.userId) {
+      if (authUser.role === "trainee" && submission.userId !== authUser.userId) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
@@ -183,11 +163,11 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/submissions", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Use the authenticated user's ID instead of accepting it from the request
+      const authUser = (req as any).user;
       const { taskName, toolType, difficulty, notes, videoUrl } = req.body;
       
       const submission = await storage.createSubmission({
-        userId: req.session.userId!,
+        userId: authUser.userId,
         taskName,
         toolType,
         difficulty,
@@ -211,7 +191,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // AI Evaluation routes
   app.get("/api/evaluations/:submissionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const evaluation = await storage.getAIEvaluation(req.params.submissionId);
@@ -230,17 +209,13 @@ export function registerRoutes(app: Express) {
     try {
       const data = insertAIEvaluationSchema.parse(req.body);
       const evaluation = await storage.createAIEvaluation(data);
-      
-      // Update submission status
       await storage.updateSubmissionStatus(data.submissionId, "ai-evaluated");
-      
       res.json(evaluation);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  // Trainer Feedback routes
   app.get("/api/feedback/:submissionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const feedback = await storage.getTrainerFeedback(req.params.submissionId);
@@ -257,18 +232,18 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/feedback", requireAuth, requireRole("trainer"), async (req: Request, res: Response) => {
     try {
+      const authUser = (req as any).user;
       const { submissionId, overallAssessment, trainerScore, nextSteps, approved } = req.body;
       
       const feedback = await storage.createTrainerFeedback({
         submissionId,
-        trainerId: req.session.userId!,
+        trainerId: authUser.userId,
         overallAssessment,
         trainerScore,
         nextSteps,
         approved,
       });
       
-      // Update submission status
       await storage.updateSubmissionStatus(
         submissionId,
         approved ? "approved" : "trainer-reviewed"
@@ -280,17 +255,16 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Combined data endpoint for submission details
   app.get("/api/submissions/:id/details", requireAuth, async (req: Request, res: Response) => {
     try {
+      const authUser = (req as any).user;
       const submission = await storage.getSubmission(req.params.id);
       
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
 
-      // Check ownership for trainees
-      if (req.session.role === "trainee" && submission.userId !== req.session.userId) {
+      if (authUser.role === "trainee" && submission.userId !== authUser.userId) {
         return res.status(403).json({ error: "Forbidden" });
       }
 

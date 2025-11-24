@@ -30,6 +30,10 @@ export default defineConfig({
     },
   },
   root: path.resolve(currentDir, "client"),
+  define: {
+    // Polyfill process for libraries that expect it in browser
+    global: "globalThis",
+  },
   build: {
     outDir: path.resolve(currentDir, "dist/public"),
     emptyOutDir: true,

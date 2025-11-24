@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,41 +8,71 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Video, Loader2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { login as apiLogin, register as apiRegister, type AuthUser } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
+import { FcGoogle } from "react-icons/fc";
+import { FaGithub } from "react-icons/fa";
 
 interface LoginProps {
-  onLogin?: (user: AuthUser) => void;
   defaultTab?: "login" | "register";
 }
 
-export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
+export default function Login({ defaultTab = "login" }: LoginProps) {
   const { toast } = useToast();
-  const [loginData, setLoginData] = useState({ username: "", password: "" });
+  const [, setLocation] = useLocation();
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
-    username: "",
+    email: "",
     password: "",
     confirmPassword: "",
-    role: "trainee" as "trainee" | "trainer",
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<"trainee" | "trainer">("trainee");
+
+  const handleOAuthLogin = async (provider: "google" | "github") => {
+    try {
+      // Store role to update after redirect if needed
+      localStorage.setItem("oauth_pending_role", selectedRole);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        }
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const user = await apiLogin(loginData.username, loginData.password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginData.email,
+        password: loginData.password,
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Welcome back!",
-        description: `Logged in as ${user.username}`,
+        description: "Successfully logged in",
       });
-      onLogin?.(user);
+
+      // Navigation handled by App.tsx effect
     } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid credentials",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -58,23 +89,34 @@ export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
     }
     setIsLoading(true);
     try {
-      const user = await apiRegister(
-        registerData.username,
-        registerData.password,
-        registerData.role
-      );
+      const { error } = await supabase.auth.signUp({
+        email: registerData.email,
+        password: registerData.password,
+        options: {
+          data: {
+            role: selectedRole,
+            display_name: registerData.email.split('@')[0],
+          },
+        },
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Account created!",
-        description: `Welcome, ${user.username}`,
+        description: "Please check your email for verification link (if enabled) or sign in.",
       });
-      onLogin?.(user);
+      
+      // If auto-sign-in is enabled in Supabase, App.tsx will redirect.
+      // If email confirmation is required, user stays here.
+      
     } catch (error: any) {
+      console.error("Register error:", error);
       toast({
         title: "Registration failed",
-        description: error.message || "Username may already exist",
+        description: error.message,
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -92,6 +134,60 @@ export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
           </p>
         </div>
 
+        <div className="mb-6">
+          <div className="mb-4">
+            <Label className="text-sm text-muted-foreground mb-2 block">I want to sign up as:</Label>
+            <RadioGroup
+              value={selectedRole}
+              onValueChange={(value) => setSelectedRole(value as "trainee" | "trainer")}
+              className="flex gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="trainee" id="oauth-trainee" />
+                <Label htmlFor="oauth-trainee" className="font-normal cursor-pointer text-sm">
+                  Trainee
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="trainer" id="oauth-trainer" />
+                <Label htmlFor="oauth-trainer" className="font-normal cursor-pointer text-sm">
+                  Trainer
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              className="w-full flex items-center gap-2"
+              onClick={() => handleOAuthLogin("google")}
+            >
+              <FcGoogle className="h-5 w-5" />
+              Continue with Google
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full flex items-center gap-2"
+              onClick={() => handleOAuthLogin("github")}
+            >
+              <FaGithub className="h-5 w-5" />
+              Continue with GitHub
+            </Button>
+          </div>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+        </div>
+
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
@@ -101,17 +197,17 @@ export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-4 mt-6">
               <div>
-                <Label htmlFor="login-username">Username</Label>
+                <Label htmlFor="login-email">Email</Label>
                 <Input
-                  id="login-username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={loginData.username}
+                  id="login-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={loginData.email}
                   onChange={(e) =>
-                    setLoginData({ ...loginData, username: e.target.value })
+                    setLoginData({ ...loginData, email: e.target.value })
                   }
                   required
-                  data-testid="input-login-username"
+                  data-testid="input-login-email"
                 />
               </div>
               <div>
@@ -138,17 +234,17 @@ export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
           <TabsContent value="register">
             <form onSubmit={handleRegister} className="space-y-4 mt-6">
               <div>
-                <Label htmlFor="register-username">Username</Label>
+                <Label htmlFor="register-email">Email</Label>
                 <Input
-                  id="register-username"
-                  type="text"
-                  placeholder="Choose a username"
-                  value={registerData.username}
+                  id="register-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={registerData.email}
                   onChange={(e) =>
-                    setRegisterData({ ...registerData, username: e.target.value })
+                    setRegisterData({ ...registerData, email: e.target.value })
                   }
                   required
-                  data-testid="input-register-username"
+                  data-testid="input-register-email"
                 />
               </div>
               <div>
@@ -181,32 +277,6 @@ export default function Login({ onLogin, defaultTab = "login" }: LoginProps) {
                   required
                   data-testid="input-confirm-password"
                 />
-              </div>
-              <div>
-                <Label>I am a...</Label>
-                <RadioGroup
-                  value={registerData.role}
-                  onValueChange={(value) =>
-                    setRegisterData({
-                      ...registerData,
-                      role: value as "trainee" | "trainer",
-                    })
-                  }
-                  className="mt-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="trainee" id="trainee" data-testid="radio-trainee" />
-                    <Label htmlFor="trainee" className="font-normal cursor-pointer">
-                      Trainee
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="trainer" id="trainer" data-testid="radio-trainer" />
-                    <Label htmlFor="trainer" className="font-normal cursor-pointer">
-                      Trainer
-                    </Label>
-                  </div>
-                </RadioGroup>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-register">
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

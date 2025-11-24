@@ -1,35 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
 import serverless from "serverless-http";
 import { registerRoutes } from "../server/routes";
 
 const app = express();
-
-declare module 'express-session' {
-  interface SessionData {
-    userId?: string;
-    username?: string;
-    role?: string;
-  }
-}
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
   }
 }
-
-// Session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'skillcam-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-  },
-}));
 
 app.use(express.json({
   verify: (req, _res, buf) => {

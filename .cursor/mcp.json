@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "Neon": {
+      "url": "https://mcp.neon.tech/mcp",
+      "headers": {}
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
+    }
+  }
+}

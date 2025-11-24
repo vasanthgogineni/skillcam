@@ -15,6 +15,38 @@ interface FeedbackPageProps {
   onLogout?: () => void;
 }
 
+interface SubmissionDetails {
+  submission: {
+    id: string;
+    taskName: string;
+    toolType: string;
+    difficulty: string;
+    notes: string | null;
+    videoUrl: string | null;
+    status: string;
+    createdAt: string;
+  } | null;
+  aiEvaluation: {
+    id: string;
+    accuracy: number;
+    stability: number;
+    completionTime: string;
+    toolUsage: number;
+    overallScore: number;
+    feedback: string | null;
+    analysisPoints: string[] | null;
+    createdAt: string;
+  } | null;
+  trainerFeedback: {
+    id: string;
+    overallAssessment: string;
+    trainerScore: number | null;
+    nextSteps: string[] | null;
+    approved: boolean;
+    createdAt: string;
+  } | null;
+}
+
 export default function FeedbackPage({
   userName = "Sarah Johnson",
   userId,
@@ -26,7 +58,7 @@ export default function FeedbackPage({
 
   const submissionId = params?.id;
 
-  const { data: details, isLoading } = useQuery({
+  const { data: details, isLoading } = useQuery<SubmissionDetails>({
     queryKey: [`/api/submissions/${submissionId}/details`],
     enabled: !!submissionId,
   });
@@ -198,7 +230,7 @@ export default function FeedbackPage({
                     <Badge variant="outline">Overall Score: {details.aiEvaluation.overallScore}%</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    {details.aiEvaluation.summary}
+                    {details.aiEvaluation.feedback}
                   </p>
                 </Card>
               )}

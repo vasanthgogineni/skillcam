@@ -1,35 +1,16 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { testConnection } from "./db";
 
 const app = express();
-
-declare module 'express-session' {
-  interface SessionData {
-    userId?: string;
-    username?: string;
-    role?: string;
-  }
-}
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
   }
 }
-
-// Session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'skillcam-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-  },
-}));
 
 app.use(express.json({
   verify: (req, _res, buf) => {
@@ -69,6 +50,27 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Test database connection before starting server
+  log("Testing database connection...");
+  
+  let dbConnected = false;
+  let retries = 5;
+  
+  while (retries > 0 && !dbConnected) {
+    dbConnected = await testConnection();
+    if (!dbConnected) {
+      log(`❌ Database connection failed. Retrying in 2s... (${retries} attempts left)`);
+      retries--;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+
+  if (!dbConnected) {
+    log("❌ Failed to connect to database after multiple attempts. Please check your DATABASE_URL in .env file");
+    process.exit(1);
+  }
+  log("✅ Database connection successful");
+
   registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -82,18 +84,24 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app);
-  } else {
+  // Note: Vite setup happens after server creation (see below)
+  if (app.get("env") !== "development") {
     serveStatic(app);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // Other ports are firewalled. Default to 5001 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  app.listen(port, "0.0.0.0", () => {
+  const port = parseInt(process.env.PORT || '5001', 10);
+  
+  // Create HTTP server first (needed for Vite HMR)
+  const server = app.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
+
+  // Setup Vite with the server instance for HMR
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  }
 })();
