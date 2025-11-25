@@ -14,7 +14,11 @@ import { uploadSubmissionVideo, getVideoDuration } from "@/lib/fileUpload";
 
 // ⭐ Flask AI Analysis - sends Supabase storage path
 async function runAiAnalysis(videoPath: string) {
-  const res = await fetch("http://localhost:5002/upload", {
+  // Use environment variable for Flask API URL, fallback to localhost for development
+  const flaskApiUrl = import.meta.env.VITE_FLASK_API_URL || "http://localhost:5002";
+  const apiUrl = `${flaskApiUrl}/upload`;
+  
+  const res = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

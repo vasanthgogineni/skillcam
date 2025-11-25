@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  flask-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skillcam-flask-ai
+    ports:
+      - "5002:5002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - FLASK_ENV=development
+    volumes:
+      # Mount .env file if it exists
+      - ./.env:/app/.env:ro
+      # Optional: persist uploads/frames for debugging (comment out in production)
+      # - ./uploads:/app/uploads
+      # - ./frames:/app/frames
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5002/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+

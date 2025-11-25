@@ -4,6 +4,8 @@ import base64
 import json
 import subprocess
 import requests
+import shutil
+import atexit
 from pathlib import Path
 from typing import List, Dict
 
@@ -35,13 +37,41 @@ MAX_FRAMES_TO_ANALYZE = 10
 VISION_MODEL = "gpt-4o-mini"
 SUMMARY_MODEL = "gpt-4o-mini"
 
+# Cleanup function for temporary files
+def cleanup_temp_files():
+    """Clean up temporary upload and frame directories"""
+    try:
+        if UPLOAD_FOLDER.exists():
+            for file in UPLOAD_FOLDER.glob("*"):
+                if file.is_file():
+                    file.unlink()
+        if FRAMES_FOLDER.exists():
+            for dir_path in FRAMES_FOLDER.iterdir():
+                if dir_path.is_dir():
+                    shutil.rmtree(dir_path, ignore_errors=True)
+    except Exception as e:
+        print(f"Warning: Error during cleanup: {e}")
+
+# Register cleanup on exit
+atexit.register(cleanup_temp_files)
+
 # OpenAI client – expects OPENAI_API_KEY in env
 client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
 app = Flask(__name__)
-CORS(app)  # allow localhost frontend during dev
+
+# CORS configuration - allow specific origins in production
+if os.environ.get("FLASK_ENV") == "development":
+    CORS(app)  # Allow all origins in development
+else:
+    # In production, allow specific origins
+    allowed_origins = os.environ.get("ALLOWED_ORIGINS", "").split(",")
+    if allowed_origins and allowed_origins[0]:
+        CORS(app, origins=allowed_origins)
+    else:
+        CORS(app)  # Fallback to allow all if not configured
 
 
 # ---------- helpers ----------
@@ -307,65 +337,97 @@ def upload():
         "final_summary": str
       }
     """
-    data = request.get_json()
-
-    if not data or "videoPath" not in data:
-        return jsonify({"error": "No 'videoPath' in request"}), 400
-
-    storage_path = data["videoPath"]
-    job_id = str(uuid.uuid4())
-    ext = Path(storage_path).suffix or ".mp4"
-    video_path = UPLOAD_FOLDER / f"{job_id}{ext}"
-
-    # Download video from Supabase
-    print(f"🎬 Downloading video from Supabase: {storage_path}")
-    if not download_video_from_supabase(storage_path, video_path):
-        return jsonify({"error": "Failed to download video from storage"}), 500
-
-    print(f"✅ Video downloaded: {video_path}")
-
-    # Extract frames
-    frames_dir = FRAMES_FOLDER / job_id
+    job_id = None
+    video_path = None
+    frames_dir = None
+    
     try:
-        frames = extract_frames(video_path, frames_dir, fps=FPS)
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"ffmpeg failed: {e}"}), 500
+        data = request.get_json()
 
-    if not frames:
-        return jsonify({"error": "No frames extracted from video"}), 500
+        if not data or "videoPath" not in data:
+            return jsonify({"error": "No 'videoPath' in request"}), 400
 
-    # Sample up to MAX_FRAMES_TO_ANALYZE evenly across the video
-    num_frames_to_use = min(MAX_FRAMES_TO_ANALYZE, len(frames))
-    indices = np.linspace(0, len(frames) - 1, num_frames_to_use, dtype=int)
-    selected = [(frames[i], i) for i in indices]
+        storage_path = data["videoPath"]
+        job_id = str(uuid.uuid4())
+        ext = Path(storage_path).suffix or ".mp4"
+        video_path = UPLOAD_FOLDER / f"{job_id}{ext}"
 
-    frame_analyses: List[Dict] = []
-    for frame_path, frame_idx in selected:
-        timestamp_sec = frame_idx / float(FPS)
-        analysis = analyze_frame_with_gpt(frame_path, timestamp_sec)
-        analysis["frame_file"] = str(frame_path)
-        frame_analyses.append(analysis)
+        # Download video from Supabase
+        print(f"🎬 Downloading video from Supabase: {storage_path}")
+        if not download_video_from_supabase(storage_path, video_path):
+            return jsonify({"error": "Failed to download video from storage"}), 500
 
-    global_analysis = global_analysis_with_gpt(frame_analyses)
+        print(f"✅ Video downloaded: {video_path}")
 
-    # Return structured response with metrics and feedback
-    payload = {
-        "job_id": job_id,
-        "video_filename": video_path.name,
-        "frame_analyses": frame_analyses,
-        "final_summary": global_analysis.get("feedback", ""),  # Keep for backward compatibility
-        "metrics": {
-            "overallScore": global_analysis.get("overallScore", 0),
-            "accuracy": global_analysis.get("accuracy", 0),
-            "stability": global_analysis.get("stability", 0),
-            "toolUsage": global_analysis.get("toolUsage", 0),
-            "completionTime": global_analysis.get("completionTime", "N/A"),
-        },
-        "feedback": global_analysis.get("feedback", ""),
-    }
-    return jsonify(payload)
+        # Extract frames
+        frames_dir = FRAMES_FOLDER / job_id
+        try:
+            frames = extract_frames(video_path, frames_dir, fps=FPS)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ ffmpeg failed: {e}")
+            return jsonify({"error": f"ffmpeg failed: {e}"}), 500
+
+        if not frames:
+            return jsonify({"error": "No frames extracted from video"}), 500
+
+        # Sample up to MAX_FRAMES_TO_ANALYZE evenly across the video
+        num_frames_to_use = min(MAX_FRAMES_TO_ANALYZE, len(frames))
+        indices = np.linspace(0, len(frames) - 1, num_frames_to_use, dtype=int)
+        selected = [(frames[i], i) for i in indices]
+
+        frame_analyses: List[Dict] = []
+        for frame_path, frame_idx in selected:
+            timestamp_sec = frame_idx / float(FPS)
+            try:
+                analysis = analyze_frame_with_gpt(frame_path, timestamp_sec)
+                analysis["frame_file"] = str(frame_path)
+                frame_analyses.append(analysis)
+            except Exception as e:
+                print(f"⚠️ Error analyzing frame {frame_path}: {e}")
+                # Continue with other frames
+                continue
+
+        if not frame_analyses:
+            return jsonify({"error": "Failed to analyze any frames"}), 500
+
+        global_analysis = global_analysis_with_gpt(frame_analyses)
+
+        # Return structured response with metrics and feedback
+        payload = {
+            "job_id": job_id,
+            "video_filename": video_path.name,
+            "frame_analyses": frame_analyses,
+            "final_summary": global_analysis.get("feedback", ""),  # Keep for backward compatibility
+            "metrics": {
+                "overallScore": global_analysis.get("overallScore", 0),
+                "accuracy": global_analysis.get("accuracy", 0),
+                "stability": global_analysis.get("stability", 0),
+                "toolUsage": global_analysis.get("toolUsage", 0),
+                "completionTime": global_analysis.get("completionTime", "N/A"),
+            },
+            "feedback": global_analysis.get("feedback", ""),
+        }
+        return jsonify(payload)
+    
+    except Exception as e:
+        print(f"❌ Unexpected error in /upload: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+    
+    finally:
+        # Cleanup temporary files after processing
+        try:
+            if video_path and video_path.exists():
+                video_path.unlink()
+                print(f"🧹 Cleaned up video: {video_path}")
+            if frames_dir and frames_dir.exists():
+                shutil.rmtree(frames_dir, ignore_errors=True)
+                print(f"🧹 Cleaned up frames: {frames_dir}")
+        except Exception as e:
+            print(f"⚠️ Warning: Error cleaning up files: {e}")
 
 
 if __name__ == "__main__":
     # Flask dev server - using port 5002 to avoid conflicts with system processes
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    port = int(os.environ.get("PORT", 5002))
+    debug = os.environ.get("FLASK_ENV") == "development"
+    app.run(host="0.0.0.0", port=port, debug=debug)
