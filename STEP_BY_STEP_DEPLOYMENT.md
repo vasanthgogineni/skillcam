@@ -21,23 +21,50 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 2. Wait for the initial build to complete (may take 2-3 minutes)
 3. Click on the service to open settings
 
-### Step 4: Add Environment Variables
-1. In the service settings, click the **"Variables"** tab
+### Step 4: Get Your Supabase Service Role Key
+
+**IMPORTANT:** The Flask server needs `SUPABASE_SERVICE_ROLE_KEY` (NOT the anon key). This is different from what your frontend uses.
+
+1. Go to https://supabase.com and log in
+2. Select your project
+3. Click on **"Settings"** (gear icon in left sidebar)
+4. Click on **"API"** in the settings menu
+5. Scroll down to find **"service_role"** key (NOT "anon public")
+6. Click the **eye icon** to reveal it, then click **"Copy"**
+7. **Save this key** - you'll need it for Railway
+
+**⚠️ Security Note:** The service_role key has admin access. Never expose it in your frontend code. Only use it on the server side (Railway).
+
+### Step 5: Get Your OpenAI API Key
+
+If you don't have one yet:
+1. Go to https://platform.openai.com/api-keys
+2. Log in or create an account
+3. Click **"Create new secret key"**
+4. Give it a name (e.g., "SkillCam Production")
+5. Copy the key (starts with `sk-`)
+6. **Save this key** - you'll need it for Railway
+
+### Step 6: Add Environment Variables to Railway
+
+1. In Railway service settings, click the **"Variables"** tab
 2. Click **"New Variable"** and add each of these:
 
-   **Variable 1:**
+   **Variable 1: OPENAI_API_KEY**
    - Name: `OPENAI_API_KEY`
-   - Value: `sk-your-actual-openai-key-here`
+   - Value: `sk-your-openai-key-here` (from Step 5)
    - Click **"Add"**
 
-   **Variable 2:**
+   **Variable 2: SUPABASE_URL**
    - Name: `SUPABASE_URL`
-   - Value: `https://your-project-id.supabase.co`
+   - Value: Your Supabase URL (you already have this)
+   - Example: `https://abcdefghijklmnop.supabase.co`
    - Click **"Add"**
 
-   **Variable 3:**
+   **Variable 3: SUPABASE_SERVICE_ROLE_KEY**
    - Name: `SUPABASE_SERVICE_ROLE_KEY`
-   - Value: `your-service-role-key-here`
+   - Value: Your service_role key (from Step 4)
+   - This is a long string starting with `eyJ...`
    - Click **"Add"**
 
    **Variable 4 (Optional but recommended):**
@@ -45,9 +72,14 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
    - Value: `production`
    - Click **"Add"**
 
-3. After adding variables, Railway will automatically redeploy
+   **⚠️ IMPORTANT: Do NOT set PORT manually!**
+   - Railway automatically sets the `PORT` environment variable
+   - If you see a PORT variable already there, **delete it** or leave it alone
+   - Railway will assign a port automatically (usually something like 5000, 8080, etc.)
 
-### Step 5: Get Your Flask Server URL
+3. After adding all variables, Railway will automatically redeploy
+
+### Step 7: Get Your Flask Server URL
 1. In the service settings, click the **"Settings"** tab
 2. Scroll down to **"Networking"** section
 3. Find **"Public Domain"** or **"Generate Domain"**
@@ -55,7 +87,7 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 5. Copy the URL (it will look like: `https://skillcam-flask-ai-production.up.railway.app`)
 6. **Save this URL** - you'll need it in the next part!
 
-### Step 6: Test Your Flask Server
+### Step 8: Test Your Flask Server
 1. Open a new browser tab
 2. Go to: `https://your-railway-url.railway.app/`
 3. You should see: `{"status":"ok"}`
@@ -65,18 +97,18 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 
 ## Part 2: Configure Vercel Frontend
 
-### Step 7: Go to Vercel Dashboard
+### Step 9: Go to Vercel Dashboard
 1. Go to https://vercel.com
 2. Log in to your account
 3. Find your `skillcam` project in the dashboard
 4. Click on the project name to open it
 
-### Step 8: Add Environment Variable to Vercel
+### Step 10: Add Environment Variable to Vercel
 1. In your Vercel project, click on **"Settings"** (top menu)
 2. Click on **"Environment Variables"** (left sidebar)
 3. Click **"Add New"** button
 
-### Step 9: Add Flask API URL
+### Step 11: Add Flask API URL
 1. In the **"Key"** field, type: `VITE_FLASK_API_URL`
 2. In the **"Value"** field, paste your Railway URL from Step 5:
    - Example: `https://skillcam-flask-ai-production.up.railway.app`
@@ -87,7 +119,7 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
    - ☑ Development
 4. Click **"Save"**
 
-### Step 10: Redeploy Vercel
+### Step 12: Redeploy Vercel
 1. Go to the **"Deployments"** tab (top menu)
 2. Find the latest deployment
 3. Click the **"⋯"** (three dots) menu
@@ -99,14 +131,14 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 
 ## Part 3: Verify Everything Works
 
-### Step 11: Test the Integration
+### Step 13: Test the Integration
 1. Go to your Vercel deployment URL (e.g., `https://skillcam.vercel.app`)
 2. Log in to your app
 3. Navigate to the upload page
 4. Upload a test video
 5. Wait for the AI analysis to complete
 
-### Step 12: Check for Errors
+### Step 14: Check for Errors
 1. Open browser **Developer Tools** (F12 or Right-click → Inspect)
 2. Go to **"Console"** tab
 3. Look for any errors related to the Flask API
@@ -114,7 +146,7 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 5. Look for requests to your Railway URL
 6. Check if they return `200 OK` status
 
-### Step 13: Verify Flask Server Logs
+### Step 15: Verify Flask Server Logs
 1. Go back to Railway dashboard
 2. Click on your Flask service
 3. Click on **"Deployments"** tab
@@ -131,6 +163,14 @@ Follow these exact steps to deploy your Flask server and connect it to Vercel.
 - Make sure the Railway URL doesn't have a trailing slash
 - Check that the service is actually deployed (green status)
 - Verify environment variables are set correctly
+
+### Problem: "$PORT is not a valid port number" error
+**Solution:**
+1. Go to Railway → Your service → Variables
+2. **Delete the PORT variable if you manually added it**
+3. Railway automatically sets PORT - you should NOT set it manually
+4. Redeploy the service
+5. The Dockerfile will use Railway's auto-assigned PORT automatically
 
 ### Problem: CORS errors in browser console
 **Solution:**
