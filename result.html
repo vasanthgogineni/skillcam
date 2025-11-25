@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Analysis Result</title>
+    <style>
+      pre {
+        background: #f4f4f4;
+        padding: 10px;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Analysis Result</h1>
+
+    <p><strong>Job ID:</strong> {{ job_id }}</p>
+    <p><strong>Uploaded video:</strong> {{ video_filename }}</p>
+
+    <h2>Per-frame analyses (JSON)</h2>
+    <pre>{{ frame_analyses | tojson(indent=2) }}</pre>
+
+    <h2>Global summary (GPT-4.1)</h2>
+    <pre>{{ final_summary }}</pre>
+
+    <p><a href="{{ url_for('index') }}">Analyze another video</a></p>
+  </body>
+</html>

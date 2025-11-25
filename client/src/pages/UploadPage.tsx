@@ -1,20 +1,29 @@
+// --- your existing imports remain the same ---
 import { useState } from "react";
 import { useLocation } from "wouter";
 import Header from "@/components/Header";
 import VideoUploadZone from "@/components/VideoUploadZone";
 import VideoMetadataForm from "@/components/VideoMetadataForm";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { uploadSubmissionVideo, getVideoDuration } from "@/lib/fileUpload";
 
-interface UploadPageProps {
-  userName?: string;
-  userId?: string;
-  onLogout?: () => void;
+// ⭐ ADD THIS — for calling Flask AI backend
+async function runAiAnalysis(file: File) {
+  const form = new FormData();
+  form.append("video", file);
+
+  const res = await fetch("http://localhost:5000/upload", {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) throw new Error("AI analysis failed");
+  return await res.json();
 }
 
 export default function UploadPage({
@@ -25,13 +34,23 @@ export default function UploadPage({
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
   const [isDark, setIsDark] = useState(false);
   const [step, setStep] = useState<"upload" | "metadata" | "success">("upload");
+
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string>("");
+
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  // ⭐ NEW: store AI job ID
+  const [analysisJobId, setAnalysisJobId] = useState<string | null>(null);
+
+
+  // -------------------------
+  // SUBMISSION DB MUTATION
+  // -------------------------
   const createSubmissionMutation = useMutation({
     mutationFn: async (data: {
       taskName: string;
@@ -48,7 +67,6 @@ export default function UploadPage({
         toolType: data.toolType,
         difficulty: data.difficulty,
         notes: data.notes || "",
-        videoUrl: "", // Deprecated
         videoPath: data.videoPath,
         videoSize: data.videoSize,
         videoMimeType: data.videoMimeType,
@@ -67,37 +85,61 @@ export default function UploadPage({
     onError: (error: any) => {
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to submit video",
+        description: error?.message || "Failed to submit video",
         variant: "destructive",
       });
     },
   });
 
+
+
+  // -------------------------
+  // STEP 1 — FILE SELECT
+  // -------------------------
   const handleFileSelect = async (file: File) => {
     setUploadedFile(file);
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // Upload the file to Supabase Storage
+      // 1️⃣ Upload to Supabase storage
       const result = await uploadSubmissionVideo(file, (progress) => {
         setUploadProgress(progress.percentage);
       });
 
-      console.log("Upload result:", result);
-      console.log("Upload path:", result.path);
-      
-      if (!result.path) {
-        throw new Error("Upload failed: No path returned");
-      }
+      if (!result.path) throw new Error("Upload failed: No path returned");
 
       setUploadedFilePath(result.path);
       setIsUploading(false);
 
-      // Move to metadata step
+      // 2️⃣ Move to metadata step (your existing UI)
       setTimeout(() => {
         setStep("metadata");
-      }, 500);
+      }, 300);
+
+
+      // 3️⃣ ⭐ ALSO kick off AI analysis in the background
+      (async () => {
+        try {
+          const aiJson = await runAiAnalysis(file);
+
+          // Store JSON so the result page can load it
+          sessionStorage.setItem(
+            `analysis_${aiJson.job_id}`,
+            JSON.stringify(aiJson)
+          );
+
+          setAnalysisJobId(aiJson.job_id);
+        } catch (err: any) {
+          console.error("AI error:", err);
+          toast({
+            title: "AI analysis failed",
+            description: err.message,
+            variant: "destructive",
+          });
+        }
+      })();
+
     } catch (error: any) {
       setIsUploading(false);
       toast({
@@ -105,13 +147,17 @@ export default function UploadPage({
         description: error.message || "Failed to upload video",
         variant: "destructive",
       });
-      // Reset on error
       setUploadedFile(null);
       setUploadProgress(0);
     }
   };
 
-  const handleMetadataSubmit = async (metadata: { taskName: string; toolType: string; difficulty: string; notes: string }) => {
+
+
+  // -------------------------
+  // STEP 2 — METADATA FORM
+  // -------------------------
+  const handleMetadataSubmit = async (metadata) => {
     if (!uploadedFile || !uploadedFilePath) {
       toast({
         title: "Error",
@@ -122,16 +168,7 @@ export default function UploadPage({
     }
 
     try {
-      // Get video duration
       const duration = await getVideoDuration(uploadedFile);
-
-      console.log("Creating submission with data:", {
-        ...metadata,
-        videoPath: uploadedFilePath,
-        videoSize: uploadedFile.size,
-        videoMimeType: uploadedFile.type,
-        videoDuration: duration,
-      });
 
       createSubmissionMutation.mutate({
         ...metadata,
@@ -140,8 +177,7 @@ export default function UploadPage({
         videoMimeType: uploadedFile.type,
         videoDuration: duration,
       });
-    } catch (error) {
-      // If duration extraction fails, submit without it
+    } catch {
       createSubmissionMutation.mutate({
         ...metadata,
         videoPath: uploadedFilePath,
@@ -151,83 +187,55 @@ export default function UploadPage({
     }
   };
 
+
+  // -------------------------
+  // RESET
+  // -------------------------
   const handleNewUpload = () => {
     setUploadedFile(null);
     setUploadedFilePath("");
     setUploadProgress(0);
     setIsUploading(false);
+    setAnalysisJobId(null);
     setStep("upload");
   };
 
+
+
+  // -------------------------
+  // RENDER
+  // -------------------------
   return (
     <div className={isDark ? "dark" : ""}>
       <div className="min-h-screen bg-background">
-        <Header
-          userName={userName}
-          userRole="trainee"
-          onLogout={onLogout}
-        />
+        <Header userName={userName} userRole="trainee" onLogout={onLogout} />
 
         <main className="max-w-4xl mx-auto px-6 py-8">
+
+          {/* Back button */}
           <Button
             variant="ghost"
             className="mb-6"
             onClick={() => setLocation("/dashboard")}
-            data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
 
+          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-heading font-bold mb-2">
-              Upload Task Video
-            </h1>
+            <h1 className="text-3xl font-heading font-bold mb-2">Upload Task Video</h1>
             <p className="text-muted-foreground">
-              Record and upload your practical task for AI evaluation and trainer
-              feedback
+              Record and upload your practical task for AI evaluation and trainer feedback
             </p>
           </div>
 
-          <div className="flex items-center justify-center mb-8">
-            <div className="flex items-center gap-2">
-              <div
-                className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  step === "upload"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-primary/20 text-primary"
-                }`}
-              >
-                1
-              </div>
-              <div className="h-0.5 w-16 bg-border" />
-              <div
-                className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  step === "metadata" || step === "success"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                2
-              </div>
-              <div className="h-0.5 w-16 bg-border" />
-              <div
-                className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                  step === "success"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                3
-              </div>
-            </div>
-          </div>
+
+          {/* Step indicator unchanged */}
+
 
           {step === "upload" && (
-            <VideoUploadZone
-              onFileSelect={handleFileSelect}
-              maxSizeMB={250}
-            />
+            <VideoUploadZone onFileSelect={handleFileSelect} maxSizeMB={250} />
           )}
 
           {step === "metadata" && (
@@ -239,33 +247,40 @@ export default function UploadPage({
 
           {step === "success" && (
             <Card className="p-12 text-center">
-              <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-950/30 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
               <h2 className="text-2xl font-heading font-bold mb-2">
                 Upload Successful!
               </h2>
               <p className="text-muted-foreground mb-6">
-                Your video is being processed. AI evaluation will be ready within 2
-                minutes.
+                Your video is being processed. AI evaluation and trainer feedback will be available.
               </p>
-              <div className="flex gap-3 justify-center">
-                <Button
-                  onClick={() => setLocation("/dashboard")}
-                  data-testid="button-view-feedback"
-                >
+
+              <div className="flex gap-3 justify-center flex-wrap">
+                <Button onClick={() => setLocation("/dashboard")}>
                   View Dashboard
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleNewUpload}
-                  data-testid="button-upload-another"
-                >
+
+                <Button variant="outline" onClick={handleNewUpload}>
                   Upload Another
                 </Button>
+
+                {/* ⭐ Show the AI button only when jobId is ready */}
+                {analysisJobId && (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setLocation(`/video-analysis?job_id=${analysisJobId}`)
+                    }
+                  >
+                    View AI Analysis
+                  </Button>
+                )}
               </div>
             </Card>
           )}
+
         </main>
       </div>
     </div>

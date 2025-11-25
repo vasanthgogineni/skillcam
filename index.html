@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Video Skill Analyzer (MVP)</title>
+  </head>
+  <body>
+    <h1>Video Skill Analyzer (MVP)</h1>
+    <p>Upload a short video clip. The server will:</p>
+    <ol>
+      <li>Extract frames with FFmpeg</li>
+      <li>Analyze a few frames with GPT-4o (vision → JSON)</li>
+      <li>Run GPT-4.1 over the JSON for a global assessment</li>
+    </ol>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+      <input type="file" name="video" accept="video/*" required />
+      <button type="submit">Upload & Analyze</button>
+    </form>
+  </body>
+</html>
