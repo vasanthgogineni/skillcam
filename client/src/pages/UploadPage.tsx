@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { uploadSubmissionVideo, getVideoDuration } from "@/lib/fileUpload";
 
 interface UploadPageProps {
   userName?: string;
@@ -27,15 +28,31 @@ export default function UploadPage({
   const [isDark, setIsDark] = useState(false);
   const [step, setStep] = useState<"upload" | "metadata" | "success">("upload");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFilePath, setUploadedFilePath] = useState<string>("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   const createSubmissionMutation = useMutation({
-    mutationFn: async (data: { taskName: string; toolType: string; difficulty: string; notes?: string }) => {
+    mutationFn: async (data: {
+      taskName: string;
+      toolType: string;
+      difficulty: string;
+      notes?: string;
+      videoPath: string;
+      videoSize: number;
+      videoMimeType: string;
+      videoDuration?: number;
+    }) => {
       const response = await apiRequest("POST", "/api/submissions", {
         taskName: data.taskName,
         toolType: data.toolType,
         difficulty: data.difficulty,
         notes: data.notes || "",
-        videoUrl: uploadedFile?.name || "",
+        videoUrl: "", // Deprecated
+        videoPath: data.videoPath,
+        videoSize: data.videoSize,
+        videoMimeType: data.videoMimeType,
+        videoDuration: data.videoDuration,
       });
       return response.json();
     },
@@ -56,19 +73,89 @@ export default function UploadPage({
     },
   });
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setUploadedFile(file);
-    setTimeout(() => {
-      setStep("metadata");
-    }, 2500);
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // Upload the file to Supabase Storage
+      const result = await uploadSubmissionVideo(file, (progress) => {
+        setUploadProgress(progress.percentage);
+      });
+
+      console.log("Upload result:", result);
+      console.log("Upload path:", result.path);
+      
+      if (!result.path) {
+        throw new Error("Upload failed: No path returned");
+      }
+
+      setUploadedFilePath(result.path);
+      setIsUploading(false);
+
+      // Move to metadata step
+      setTimeout(() => {
+        setStep("metadata");
+      }, 500);
+    } catch (error: any) {
+      setIsUploading(false);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload video",
+        variant: "destructive",
+      });
+      // Reset on error
+      setUploadedFile(null);
+      setUploadProgress(0);
+    }
   };
 
-  const handleMetadataSubmit = (metadata: { taskName: string; toolType: string; difficulty: string; notes: string }) => {
-    createSubmissionMutation.mutate(metadata);
+  const handleMetadataSubmit = async (metadata: { taskName: string; toolType: string; difficulty: string; notes: string }) => {
+    if (!uploadedFile || !uploadedFilePath) {
+      toast({
+        title: "Error",
+        description: "No video file uploaded",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Get video duration
+      const duration = await getVideoDuration(uploadedFile);
+
+      console.log("Creating submission with data:", {
+        ...metadata,
+        videoPath: uploadedFilePath,
+        videoSize: uploadedFile.size,
+        videoMimeType: uploadedFile.type,
+        videoDuration: duration,
+      });
+
+      createSubmissionMutation.mutate({
+        ...metadata,
+        videoPath: uploadedFilePath,
+        videoSize: uploadedFile.size,
+        videoMimeType: uploadedFile.type,
+        videoDuration: duration,
+      });
+    } catch (error) {
+      // If duration extraction fails, submit without it
+      createSubmissionMutation.mutate({
+        ...metadata,
+        videoPath: uploadedFilePath,
+        videoSize: uploadedFile.size,
+        videoMimeType: uploadedFile.type,
+      });
+    }
   };
 
   const handleNewUpload = () => {
     setUploadedFile(null);
+    setUploadedFilePath("");
+    setUploadProgress(0);
+    setIsUploading(false);
     setStep("upload");
   };
 

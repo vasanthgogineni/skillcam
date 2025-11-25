@@ -118,7 +118,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSubmission(insertSubmission: InsertSubmission): Promise<Submission> {
+    console.log("Storage.createSubmission: Input data:", JSON.stringify(insertSubmission, null, 2));
     const result = await db.insert(submissions).values(insertSubmission).returning();
+    console.log("Storage.createSubmission: Created submission:", JSON.stringify(result[0], null, 2));
     return result[0];
   }
 

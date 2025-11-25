@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey(), // References auth.users
   email: text("email").notNull(),
   displayName: text("display_name"),
+  avatarUrl: text("avatar_url"), // Profile avatar URL
   role: text("role").notNull().default("trainee"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -37,7 +38,11 @@ export const submissions = pgTable("submissions", {
   toolType: text("tool_type").notNull(),
   difficulty: text("difficulty").notNull(),
   notes: text("notes"),
-  videoUrl: text("video_url"),
+  videoUrl: text("video_url"), // Deprecated - use videoPath instead
+  videoPath: text("video_path"), // Storage path in Supabase Storage
+  videoSize: integer("video_size"), // File size in bytes
+  videoMimeType: text("video_mime_type"), // MIME type
+  videoDuration: integer("video_duration"), // Duration in seconds
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
@@ -53,6 +58,17 @@ export const insertSubmissionSchema = createInsertSchema(submissions).pick({
   difficulty: true,
   notes: true,
   videoUrl: true,
+  videoPath: true,
+  videoSize: true,
+  videoMimeType: true,
+  videoDuration: true,
+}).extend({
+  videoPath: z.string().nullable().optional(),
+  videoSize: z.number().nullable().optional(),
+  videoMimeType: z.string().nullable().optional(),
+  videoDuration: z.number().nullable().optional(),
+  videoUrl: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export type InsertSubmission = z.infer<typeof insertSubmissionSchema>;
@@ -94,6 +110,8 @@ export const trainerFeedback = pgTable("trainer_feedback", {
   overallAssessment: text("overall_assessment").notNull(),
   trainerScore: integer("trainer_score"),
   nextSteps: text("next_steps").array(),
+  attachmentPaths: text("attachment_paths").array(), // Storage paths for attachments
+  attachmentNames: text("attachment_names").array(), // Original filenames
   approved: boolean("approved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [

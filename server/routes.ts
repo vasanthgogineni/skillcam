@@ -1,10 +1,18 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import multer from "multer";
 import { storage } from "./storage";
 import {
   insertAIEvaluationSchema,
   insertWaitlistEntrySchema,
 } from "@shared/schema";
 import { createClient } from "@supabase/supabase-js";
+import {
+  uploadFile,
+  getSignedUrl,
+  deleteFile,
+  BUCKETS,
+  getFileMetadata,
+} from "./supabaseStorage";
 
 const supabaseUrl = process.env.SUPABASE_URL || "https://yrdmimdkhsdzqjjdajvv.supabase.co";
 const supabaseKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyZG1pbWRraHNkenFqamRhanZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MzgxMjksImV4cCI6MjA3OTUxNDEyOX0.gKCFOG9qMkBKal0RwUZohP8jsdSqWioDU2zx8Jw_JC4";
@@ -59,6 +67,14 @@ function requireRole(role: string) {
     next();
   };
 }
+
+// Configure multer for file uploads (store in memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 250 * 1024 * 1024, // 250MB max file size
+  },
+});
 
 export function registerRoutes(app: Express) {
   const waitlistInputSchema = insertWaitlistEntrySchema;
@@ -164,19 +180,40 @@ export function registerRoutes(app: Express) {
   app.post("/api/submissions", requireAuth, async (req: Request, res: Response) => {
     try {
       const authUser = (req as any).user;
-      const { taskName, toolType, difficulty, notes, videoUrl } = req.body;
+      const { taskName, toolType, difficulty, notes, videoUrl, videoPath, videoSize, videoMimeType, videoDuration } = req.body;
       
-      const submission = await storage.createSubmission({
+      console.log("=== Creating Submission ===");
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      console.log("videoPath received:", videoPath);
+      console.log("videoSize received:", videoSize);
+      console.log("videoMimeType received:", videoMimeType);
+      
+      // Ensure videoPath is a string or null, not empty string
+      const normalizedVideoPath = videoPath && videoPath.trim() ? videoPath.trim() : null;
+      
+      const submissionData = {
         userId: authUser.userId,
         taskName,
         toolType,
         difficulty,
         notes: notes || "",
         videoUrl: videoUrl || "",
-      });
+        videoPath: normalizedVideoPath,
+        videoSize: videoSize ? parseInt(String(videoSize)) : null,
+        videoMimeType: videoMimeType || null,
+        videoDuration: videoDuration ? parseInt(String(videoDuration)) : null,
+      };
+      
+      console.log("Submission data to save:", JSON.stringify(submissionData, null, 2));
+      
+      const submission = await storage.createSubmission(submissionData);
+      
+      console.log("Submission created:", JSON.stringify(submission, null, 2));
+      console.log("Created submission videoPath:", submission.videoPath);
       
       res.json(submission);
     } catch (error: any) {
+      console.error("Error creating submission:", error);
       res.status(400).json({ error: error.message });
     }
   });
@@ -259,7 +296,7 @@ export function registerRoutes(app: Express) {
     try {
       const authUser = (req as any).user;
       const submission = await storage.getSubmission(req.params.id);
-      
+
       if (!submission) {
         return res.status(404).json({ error: "Submission not found" });
       }
@@ -277,6 +314,254 @@ export function registerRoutes(app: Express) {
         trainerFeedback: trainerFeedbackData,
       });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // File Upload Endpoints
+
+  // Upload submission video
+  app.post("/api/uploads/submission-video", requireAuth, upload.single("video"), async (req: Request, res: Response) => {
+    try {
+      console.log("=== Upload Video Request ===");
+      const authUser = (req as any).user;
+      console.log("Auth user:", authUser);
+
+      const file = req.file;
+      console.log("File received:", file ? `${file.originalname} (${file.size} bytes, ${file.mimetype})` : "NO FILE");
+
+      if (!file) {
+        console.error("No file in request");
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Validate file type
+      if (!file.mimetype.startsWith("video/")) {
+        console.error("Invalid file type:", file.mimetype);
+        return res.status(400).json({ error: "Only video files are allowed" });
+      }
+
+      console.log("Uploading to Supabase Storage...");
+      console.log("Bucket:", BUCKETS.SUBMISSION_VIDEOS);
+      console.log("User ID:", authUser.userId);
+
+      // Upload to Supabase Storage
+      const uploadResult = await uploadFile(
+        BUCKETS.SUBMISSION_VIDEOS,
+        file.buffer,
+        file.originalname,
+        authUser.userId,
+        false, // Private
+        file.mimetype // Pass the MIME type
+      );
+
+      console.log("Upload result:", uploadResult);
+
+      if (uploadResult.error) {
+        console.error("Supabase upload error:", uploadResult.error);
+        return res.status(500).json({ error: uploadResult.error });
+      }
+
+      console.log("Upload successful!");
+
+      // Return file metadata
+      res.json({
+        path: uploadResult.path,
+        size: file.size,
+        mimeType: file.mimetype,
+        originalName: file.originalname,
+      });
+    } catch (error: any) {
+      console.error("=== Video upload error ===");
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ error: error.message || "Upload failed" });
+    }
+  });
+
+  // Get signed URL for viewing private files
+  app.get("/api/uploads/signed-url", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { bucket, path } = req.query;
+
+      console.log("=== Get Signed URL Request ===");
+      console.log("Bucket:", bucket);
+      console.log("Path:", path);
+      console.log("Path type:", typeof path);
+
+      if (!bucket || !path) {
+        console.error("Missing bucket or path parameter");
+        return res.status(400).json({ error: "Missing bucket or path parameter" });
+      }
+
+      const authUser = (req as any).user;
+      console.log("Auth user:", authUser);
+
+      // Decode the path in case it's URL encoded
+      const decodedPath = decodeURIComponent(path as string);
+      console.log("Decoded path:", decodedPath);
+
+      // Verify user has access to this file
+      const pathParts = decodedPath.split("/");
+      const fileUserId = pathParts[0];
+      console.log("File user ID:", fileUserId);
+      console.log("Auth user ID:", authUser.userId);
+      console.log("User role:", authUser.role);
+
+      if (authUser.role !== "trainer" && fileUserId !== authUser.userId) {
+        console.error("Access denied - user doesn't own file and isn't trainer");
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      console.log("Calling getSignedUrl with:", { bucket, path: decodedPath });
+      const result = await getSignedUrl(bucket as string, decodedPath, 3600);
+
+      console.log("getSignedUrl result:", result);
+
+      if (result.error) {
+        console.error("getSignedUrl error:", result.error);
+        return res.status(500).json({ error: result.error });
+      }
+
+      if (!result.url) {
+        console.error("No URL returned from getSignedUrl");
+        return res.status(500).json({ error: "Failed to generate signed URL" });
+      }
+
+      console.log("Signed URL generated successfully");
+      res.json({ url: result.url });
+    } catch (error: any) {
+      console.error("=== Get signed URL exception ===");
+      console.error("Error:", error);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ error: error.message || "Failed to get signed URL" });
+    }
+  });
+
+  // Upload trainer attachment (images/PDFs for feedback)
+  app.post("/api/uploads/trainer-attachment", requireAuth, requireRole("trainer"), upload.single("attachment"), async (req: Request, res: Response) => {
+    try {
+      const authUser = (req as any).user;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Validate file type
+      const allowedMimeTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+      ];
+
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        return res.status(400).json({
+          error: "Only images (JPEG, PNG, GIF, WebP) and PDFs are allowed"
+        });
+      }
+
+      // Upload to Supabase Storage
+      const uploadResult = await uploadFile(
+        BUCKETS.TRAINER_ATTACHMENTS,
+        file.buffer,
+        file.originalname,
+        authUser.userId,
+        false, // Private
+        file.mimetype // Pass the MIME type
+      );
+
+      if (uploadResult.error) {
+        return res.status(500).json({ error: uploadResult.error });
+      }
+
+      res.json({
+        path: uploadResult.path,
+        size: file.size,
+        mimeType: file.mimetype,
+        originalName: file.originalname,
+      });
+    } catch (error: any) {
+      console.error("Attachment upload error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Upload profile avatar
+  app.post("/api/uploads/profile-avatar", requireAuth, upload.single("avatar"), async (req: Request, res: Response) => {
+    try {
+      const authUser = (req as any).user;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Validate file type
+      const allowedMimeTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+      ];
+
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        return res.status(400).json({
+          error: "Only images (JPEG, PNG, WebP) are allowed"
+        });
+      }
+
+      // Upload to Supabase Storage (public bucket)
+      const uploadResult = await uploadFile(
+        BUCKETS.PROFILE_AVATARS,
+        file.buffer,
+        file.originalname,
+        authUser.userId,
+        true, // Public
+        file.mimetype // Pass the MIME type
+      );
+
+      if (uploadResult.error) {
+        return res.status(500).json({ error: uploadResult.error });
+      }
+
+      res.json({
+        path: uploadResult.path,
+        publicUrl: uploadResult.publicUrl,
+        size: file.size,
+        mimeType: file.mimetype,
+      });
+    } catch (error: any) {
+      console.error("Avatar upload error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a file
+  app.delete("/api/uploads/:bucket/:path(*)", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const authUser = (req as any).user;
+      const { bucket, path } = req.params;
+
+      // Verify user owns this file
+      const pathParts = path.split("/");
+      const fileUserId = pathParts[0];
+
+      if (fileUserId !== authUser.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const result = await deleteFile(bucket, path);
+
+      if (result.error) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete file error:", error);
       res.status(500).json({ error: error.message });
     }
   });

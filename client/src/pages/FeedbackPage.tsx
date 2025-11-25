@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, Play, Sparkles, User, CheckCircle, Upload, BookOpen, Target, Loader2, Wrench, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import VideoPlayer from "@/components/VideoPlayer";
 
 interface FeedbackPageProps {
   userName?: string;
@@ -23,6 +24,7 @@ interface SubmissionDetails {
     difficulty: string;
     notes: string | null;
     videoUrl: string | null;
+    videoPath: string | null;
     status: string;
     createdAt: string;
   } | null;
@@ -144,17 +146,11 @@ export default function FeedbackPage({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 <Card className="lg:col-span-2 p-6">
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-center">
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                        <Play className="h-8 w-8 text-primary" />
-                      </div>
-                      <p className="text-sm text-muted-foreground">Video Player Placeholder</p>
-                      {details.submission.videoUrl && (
-                        <p className="text-xs text-muted-foreground mt-1">{details.submission.videoUrl}</p>
-                      )}
-                    </div>
-                  </div>
+                  <VideoPlayer 
+                    videoPath={details.submission.videoPath || details.submission.videoUrl} 
+                    bucket="submission-videos"
+                    className="mb-4"
+                  />
                   {details.submission.notes && (
                     <div className="mt-4">
                       <h3 className="font-medium mb-2">Your Notes</h3>

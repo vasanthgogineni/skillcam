@@ -20,6 +20,7 @@ import {
 import { Search, Play, CheckCircle, AlertCircle, Sparkles, Wrench, Calendar, Send, Loader2, User } from "lucide-react";
 import type { Submission, AIEvaluation, TrainerFeedback } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type SubmissionDetails = {
   submission: Submission;
@@ -143,6 +144,26 @@ export default function TrainerReview({
   }, [filteredSubmissions, selectedSubmissionId]);
 
   const selectedData = submissions.find((s) => s.id === selectedSubmissionId);
+  // Try to get videoPath from submissionDetails first (most complete data), then fallback to selectedData
+  const videoPath = submissionDetails?.submission?.videoPath 
+    || submissionDetails?.submission?.videoUrl 
+    || selectedData?.videoPath 
+    || selectedData?.videoUrl;
+  
+  // Debug logging
+  useEffect(() => {
+    if (selectedSubmissionId) {
+      console.log("=== Video Player Debug ===");
+      console.log("Selected submission ID:", selectedSubmissionId);
+      console.log("Selected data (from list):", selectedData);
+      console.log("Submission details (full):", submissionDetails);
+      console.log("Final videoPath:", videoPath);
+      console.log("Submission videoPath:", submissionDetails?.submission?.videoPath);
+      console.log("Submission videoUrl:", submissionDetails?.submission?.videoUrl);
+      console.log("SelectedData videoPath:", selectedData?.videoPath);
+      console.log("SelectedData videoUrl:", selectedData?.videoUrl);
+    }
+  }, [selectedSubmissionId, selectedData, submissionDetails, videoPath]);
 
   return (
     <div className={isDark ? "dark" : ""}>
@@ -300,13 +321,11 @@ export default function TrainerReview({
                   </div>
 
                   <Card className="p-6 mb-6">
-                    <div className="aspect-video bg-muted rounded-lg flex items-center justify-center mb-4">
-                      <div className="text-center">
-                        <Play className="h-16 w-16 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Video Player</p>
-                        <p className="text-xs text-muted-foreground mt-1">{selectedData.videoUrl || "No video URL"}</p>
-                      </div>
-                    </div>
+                    <VideoPlayer 
+                      videoPath={videoPath} 
+                      bucket="submission-videos"
+                      className="mb-4"
+                    />
                     {selectedData.notes && (
                       <div className="mt-4">
                         <h3 className="font-medium mb-2">Trainee Notes</h3>
