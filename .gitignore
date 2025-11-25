@@ -7,3 +7,4 @@ vite.config.ts.*
 .tmp
 .npm-cache
 .local
+.env

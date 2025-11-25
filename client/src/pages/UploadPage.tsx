@@ -165,8 +165,6 @@ export default function UploadPage({
         <Header
           userName={userName}
           userRole="trainee"
-          isDark={isDark}
-          onThemeToggle={() => setIsDark(!isDark)}
           onLogout={onLogout}
         />
 
