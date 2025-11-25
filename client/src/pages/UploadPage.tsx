@@ -12,18 +12,82 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { uploadSubmissionVideo, getVideoDuration } from "@/lib/fileUpload";
 
-// ⭐ ADD THIS — for calling Flask AI backend
-async function runAiAnalysis(file: File) {
-  const form = new FormData();
-  form.append("video", file);
-
-  const res = await fetch("http://localhost:5000/upload", {
+// ⭐ Flask AI Analysis - sends Supabase storage path
+async function runAiAnalysis(videoPath: string) {
+  const res = await fetch("http://localhost:5002/upload", {
     method: "POST",
-    body: form,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ videoPath }),
   });
 
-  if (!res.ok) throw new Error("AI analysis failed");
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "AI analysis failed");
+  }
   return await res.json();
+}
+
+// ⭐ Transform Flask AI response to database schema
+function transformAiResponseToDbFormat(flaskResponse: any, submissionId: string) {
+  const { frame_analyses, final_summary, metrics, feedback } = flaskResponse;
+
+  // Use structured metrics from AI if available, otherwise calculate from frames
+  let overallScore = 0;
+  let accuracy = 0;
+  let stability = 0;
+  let toolUsage = 0;
+  let completionTime = "N/A";
+  let feedbackText = feedback || final_summary || "";
+
+  if (metrics) {
+    // Use structured metrics from AI
+    overallScore = metrics.overallScore || 0;
+    accuracy = metrics.accuracy || 0;
+    stability = metrics.stability || 0;
+    toolUsage = metrics.toolUsage || 0;
+    completionTime = metrics.completionTime || "N/A";
+  } else {
+    // Fallback: calculate from frame analyses
+    const skillScores = frame_analyses.map((f: any) => f.skill_score || 0);
+    const avgScore = skillScores.length > 0
+      ? Math.round(skillScores.reduce((a: number, b: number) => a + b, 0) / skillScores.length)
+      : 0;
+    
+    overallScore = avgScore;
+    accuracy = avgScore;
+    stability = avgScore;
+    toolUsage = avgScore;
+  }
+
+  // Extract analysis points from frame errors and safety issues
+  const analysisPoints: string[] = [];
+  frame_analyses.forEach((frame: any) => {
+    if (frame.errors && frame.errors.length > 0) {
+      frame.errors.forEach((err: string) => analysisPoints.push(`Error: ${err}`));
+    }
+    if (frame.safety_issues && frame.safety_issues.length > 0) {
+      frame.safety_issues.forEach((issue: string) => analysisPoints.push(`Safety: ${issue}`));
+    }
+  });
+
+  return {
+    submissionId,
+    accuracy: Math.min(100, Math.max(0, accuracy)),
+    stability: Math.min(100, Math.max(0, stability)),
+    completionTime: completionTime,
+    toolUsage: Math.min(100, Math.max(0, toolUsage)),
+    overallScore: Math.min(100, Math.max(0, overallScore)),
+    feedback: feedbackText,
+    analysisPoints: analysisPoints.slice(0, 10), // Limit to top 10
+  };
+}
+
+interface UploadPageProps {
+  userName?: string;
+  userId?: string;
+  onLogout?: () => void;
 }
 
 export default function UploadPage({
@@ -44,52 +108,8 @@ export default function UploadPage({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  // ⭐ NEW: store AI job ID
+  // ⭐ Store AI job ID for sessionStorage link
   const [analysisJobId, setAnalysisJobId] = useState<string | null>(null);
-
-
-  // -------------------------
-  // SUBMISSION DB MUTATION
-  // -------------------------
-  const createSubmissionMutation = useMutation({
-    mutationFn: async (data: {
-      taskName: string;
-      toolType: string;
-      difficulty: string;
-      notes?: string;
-      videoPath: string;
-      videoSize: number;
-      videoMimeType: string;
-      videoDuration?: number;
-    }) => {
-      const response = await apiRequest("POST", "/api/submissions", {
-        taskName: data.taskName,
-        toolType: data.toolType,
-        difficulty: data.difficulty,
-        notes: data.notes || "",
-        videoPath: data.videoPath,
-        videoSize: data.videoSize,
-        videoMimeType: data.videoMimeType,
-        videoDuration: data.videoDuration,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
-      toast({
-        title: "Upload successful!",
-        description: "Your video has been submitted for AI evaluation.",
-      });
-      setStep("success");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Upload failed",
-        description: error?.message || "Failed to submit video",
-        variant: "destructive",
-      });
-    },
-  });
 
 
 
@@ -112,33 +132,10 @@ export default function UploadPage({
       setUploadedFilePath(result.path);
       setIsUploading(false);
 
-      // 2️⃣ Move to metadata step (your existing UI)
+      // 2️⃣ Move to metadata step
       setTimeout(() => {
         setStep("metadata");
       }, 300);
-
-
-      // 3️⃣ ⭐ ALSO kick off AI analysis in the background
-      (async () => {
-        try {
-          const aiJson = await runAiAnalysis(file);
-
-          // Store JSON so the result page can load it
-          sessionStorage.setItem(
-            `analysis_${aiJson.job_id}`,
-            JSON.stringify(aiJson)
-          );
-
-          setAnalysisJobId(aiJson.job_id);
-        } catch (err: any) {
-          console.error("AI error:", err);
-          toast({
-            title: "AI analysis failed",
-            description: err.message,
-            variant: "destructive",
-          });
-        }
-      })();
 
     } catch (error: any) {
       setIsUploading(false);
@@ -157,7 +154,7 @@ export default function UploadPage({
   // -------------------------
   // STEP 2 — METADATA FORM
   // -------------------------
-  const handleMetadataSubmit = async (metadata) => {
+  const handleMetadataSubmit = async (metadata: { taskName: string; toolType: string; difficulty: string; notes: string }) => {
     if (!uploadedFile || !uploadedFilePath) {
       toast({
         title: "Error",
@@ -168,21 +165,78 @@ export default function UploadPage({
     }
 
     try {
-      const duration = await getVideoDuration(uploadedFile);
+      // Get video duration
+      let duration;
+      try {
+        duration = await getVideoDuration(uploadedFile);
+      } catch {
+        duration = undefined;
+      }
 
-      createSubmissionMutation.mutate({
-        ...metadata,
+      // 1️⃣ Create submission first
+      const submissionResponse = await apiRequest("POST", "/api/submissions", {
+        taskName: metadata.taskName,
+        toolType: metadata.toolType,
+        difficulty: metadata.difficulty,
+        notes: metadata.notes || "",
         videoPath: uploadedFilePath,
         videoSize: uploadedFile.size,
         videoMimeType: uploadedFile.type,
         videoDuration: duration,
       });
-    } catch {
-      createSubmissionMutation.mutate({
-        ...metadata,
-        videoPath: uploadedFilePath,
-        videoSize: uploadedFile.size,
-        videoMimeType: uploadedFile.type,
+
+      const submission = await submissionResponse.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+
+      toast({
+        title: "Submission created!",
+        description: "Running AI analysis...",
+      });
+
+      setStep("success");
+
+      // 2️⃣ Run AI analysis in background
+      (async () => {
+        try {
+          console.log("🤖 Starting AI analysis for video:", uploadedFilePath);
+          const aiJson = await runAiAnalysis(uploadedFilePath);
+
+          console.log("✅ AI analysis complete:", aiJson);
+
+          // Store in sessionStorage for VideoAnalysisResult page
+          sessionStorage.setItem(
+            `analysis_${aiJson.job_id}`,
+            JSON.stringify(aiJson)
+          );
+          setAnalysisJobId(aiJson.job_id);
+
+          // 3️⃣ Transform and save to database
+          const dbFormat = transformAiResponseToDbFormat(aiJson, submission.id);
+
+          console.log("💾 Saving AI evaluation to database:", dbFormat);
+          await apiRequest("POST", "/api/evaluations", dbFormat);
+
+          queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+          queryClient.invalidateQueries({ queryKey: [`/api/submissions/${submission.id}/details`] });
+
+          toast({
+            title: "AI Analysis Complete!",
+            description: "Your submission has been evaluated by AI.",
+          });
+        } catch (err: any) {
+          console.error("AI analysis error:", err);
+          toast({
+            title: "AI analysis failed",
+            description: err.message || "The submission was saved but AI analysis failed.",
+            variant: "destructive",
+          });
+        }
+      })();
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Failed to submit video",
+        variant: "destructive",
       });
     }
   };

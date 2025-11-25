@@ -21,6 +21,7 @@ import { Search, Play, CheckCircle, AlertCircle, Sparkles, Wrench, Calendar, Sen
 import type { Submission, AIEvaluation, TrainerFeedback } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import VideoPlayer from "@/components/VideoPlayer";
+import AIAnalysisDisplay from "@/components/AIAnalysisDisplay";
 
 type SubmissionDetails = {
   submission: Submission;
@@ -42,7 +43,6 @@ export default function TrainerReview({
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isDark, setIsDark] = useState(false);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -166,15 +166,12 @@ export default function TrainerReview({
   }, [selectedSubmissionId, selectedData, submissionDetails, videoPath]);
 
   return (
-    <div className={isDark ? "dark" : ""}>
-      <div className="min-h-screen bg-background">
-        <Header
-          userName={userName}
-          userRole="trainer"
-          isDark={isDark}
-          onThemeToggle={() => setIsDark(!isDark)}
-          onLogout={onLogout}
-        />
+    <div className="min-h-screen bg-background">
+      <Header
+        userName={userName}
+        userRole="trainer"
+        onLogout={onLogout}
+      />
 
         <main className="flex h-[calc(100vh-4rem)]">
           <aside className="w-80 border-r bg-card/50 overflow-y-auto p-4">
@@ -334,86 +331,25 @@ export default function TrainerReview({
                     )}
                   </Card>
 
-                  <Card className="p-6 mb-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <h3 className="font-heading font-semibold">AI Evaluation</h3>
-                      {submissionDetails?.aiEvaluation ? (
-                        <Badge className="bg-green-50 text-green-700 dark:bg-green-950/30">Complete</Badge>
-                      ) : (
-                        <Badge variant="outline">Pending</Badge>
-                      )}
+                  {submissionDetails?.aiEvaluation ? (
+                    <div className="mb-6">
+                      <AIAnalysisDisplay evaluation={{
+                        ...submissionDetails.aiEvaluation,
+                        createdAt: submissionDetails.aiEvaluation.createdAt.toString()
+                      }} />
                     </div>
-                    
-                    {submissionDetails?.aiEvaluation ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">Overall Score</p>
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-3xl font-bold text-primary" data-testid="text-ai-score">
-                                {submissionDetails.aiEvaluation.overallScore}
-                              </span>
-                              <span className="text-muted-foreground">/100</span>
-                            </div>
-                            <Progress value={submissionDetails.aiEvaluation.overallScore} className="mt-2" />
-                          </div>
-                          
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-1">AI Feedback</p>
-                            <p className="text-sm font-medium" data-testid="text-ai-feedback">
-                              {submissionDetails.aiEvaluation.feedback || "No feedback available"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="border-t pt-4 mt-4">
-                          <p className="text-sm font-medium mb-3">Performance Metrics</p>
-                          <div className="grid grid-cols-4 gap-4">
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Accuracy</p>
-                              <p className="text-lg font-semibold" data-testid="text-accuracy">
-                                {submissionDetails.aiEvaluation.accuracy}%
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Stability</p>
-                              <p className="text-lg font-semibold" data-testid="text-stability">
-                                {submissionDetails.aiEvaluation.stability}%
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Tool Usage</p>
-                              <p className="text-lg font-semibold" data-testid="text-tool-usage">
-                                {submissionDetails.aiEvaluation.toolUsage}%
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Time</p>
-                              <p className="text-lg font-semibold" data-testid="text-completion-time">
-                                {submissionDetails.aiEvaluation.completionTime}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {submissionDetails.aiEvaluation.analysisPoints && submissionDetails.aiEvaluation.analysisPoints.length > 0 && (
-                          <div className="border-t pt-4 mt-4">
-                            <p className="text-sm font-medium mb-2">Key Analysis Points</p>
-                            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                              {submissionDetails.aiEvaluation.analysisPoints.map((point, index) => (
-                                <li key={index}>{point}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                  ) : (
+                    <Card className="p-6 mb-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <h3 className="font-heading font-semibold">AI Evaluation</h3>
+                        <Badge variant="outline">Pending</Badge>
                       </div>
-                    ) : (
                       <p className="text-sm text-muted-foreground">
                         AI evaluation will appear here once processing is complete
                       </p>
-                    )}
-                  </Card>
+                    </Card>
+                  )}
 
                   <Card className="p-6">
                     <h3 className="font-heading font-semibold mb-4">Trainer Feedback</h3>
@@ -544,7 +480,6 @@ export default function TrainerReview({
             </div>
           </div>
         </main>
-      </div>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
@@ -9,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, Play, Sparkles, User, CheckCircle, Upload, BookOpen, Target, Loader2, Wrench, Calendar } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import VideoPlayer from "@/components/VideoPlayer";
+import AIAnalysisDisplay from "@/components/AIAnalysisDisplay";
 
 interface FeedbackPageProps {
   userName?: string;
@@ -56,7 +56,6 @@ export default function FeedbackPage({
 }: FeedbackPageProps) {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/feedback/:id");
-  const [isDark, setIsDark] = useState(false);
 
   const submissionId = params?.id;
 
@@ -76,15 +75,12 @@ export default function FeedbackPage({
   };
 
   return (
-    <div className={isDark ? "dark" : ""}>
-      <div className="min-h-screen bg-background">
-        <Header
-          userName={userName}
-          userRole="trainee"
-          isDark={isDark}
-          onThemeToggle={() => setIsDark(!isDark)}
-          onLogout={onLogout}
-        />
+    <div className="min-h-screen bg-background">
+      <Header
+        userName={userName}
+        userRole="trainee"
+        onLogout={onLogout}
+      />
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between mb-6">
@@ -171,7 +167,7 @@ export default function FeedbackPage({
                               <Sparkles className="h-4 w-4 text-primary" />
                               <span className="text-xs text-muted-foreground">AI Score</span>
                             </div>
-                            <p className="text-xl font-bold">N/A</p>
+                            <p className="text-xl font-bold">{details.aiEvaluation?.overallScore || 'N/A'}</p>
                           </div>
                           <div>
                             <div className="flex items-center gap-1 justify-center mb-1">
@@ -181,6 +177,12 @@ export default function FeedbackPage({
                             <p className="text-xl font-bold">{details.trainerFeedback.trainerScore}%</p>
                           </div>
                         </div>
+                      </>
+                    ) : details.aiEvaluation ? (
+                      <>
+                        <p className="text-5xl font-bold text-primary mb-4">{details.aiEvaluation.overallScore}</p>
+                        <Badge variant="outline">AI Evaluated</Badge>
+                        <p className="text-xs text-muted-foreground mt-2">Awaiting trainer review</p>
                       </>
                     ) : (
                       <p className="text-muted-foreground py-8">Awaiting evaluation</p>
@@ -219,16 +221,9 @@ export default function FeedbackPage({
               </div>
 
               {details.aiEvaluation && (
-                <Card className="p-6 mb-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    <h3 className="font-heading font-semibold">AI Evaluation</h3>
-                    <Badge variant="outline">Overall Score: {details.aiEvaluation.overallScore}%</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {details.aiEvaluation.feedback}
-                  </p>
-                </Card>
+                <div className="mb-6">
+                  <AIAnalysisDisplay evaluation={details.aiEvaluation} />
+                </div>
               )}
 
               {details.trainerFeedback && (
@@ -302,7 +297,6 @@ export default function FeedbackPage({
             </>
           )}
         </main>
-      </div>
     </div>
   );
 }

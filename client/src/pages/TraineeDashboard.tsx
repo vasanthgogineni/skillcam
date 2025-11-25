@@ -211,7 +211,11 @@ export default function TraineeDashboard({
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground mb-1">AI Score</p>
-                        <p className="text-2xl font-bold text-primary">--</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {(submission as any).aiScore !== null && (submission as any).aiScore !== undefined
+                            ? (submission as any).aiScore
+                            : "--"}
+                        </p>
                       </div>
                     </div>
                   </Card>

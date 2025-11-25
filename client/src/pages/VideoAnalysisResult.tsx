@@ -13,7 +13,6 @@ interface AnalysisPayload {
 
 export default function VideoAnalysisResult() {
   const [, setLocation] = useLocation();
-  const [isDark, setIsDark] = useState(false);
   const [data, setData] = useState<AnalysisPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,47 +44,38 @@ export default function VideoAnalysisResult() {
 
   if (error) {
     return (
-      <div className={isDark ? "dark" : ""}>
-        <div className="min-h-screen bg-background">
-          <Header
-            userName="Trainee"
-            userRole="trainee"
-            isDark={isDark}
-            onThemeToggle={() => setIsDark(!isDark)}
-          />
-          <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
-            <h1 className="text-3xl font-heading font-bold mb-2">
-              AI Analysis Result
-            </h1>
-            <p className="text-destructive">{error}</p>
-            <Button onClick={() => setLocation("/upload")} className="mt-4">
-              Go to Upload Page
-            </Button>
-          </main>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Header
+          userName="Trainee"
+          userRole="trainee"
+        />
+        <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
+          <h1 className="text-3xl font-heading font-bold mb-2">
+            AI Analysis Result
+          </h1>
+          <p className="text-destructive">{error}</p>
+          <Button onClick={() => setLocation("/upload")} className="mt-4">
+            Go to Upload Page
+          </Button>
+        </main>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className={isDark ? "dark" : ""}>
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <p>Loading analysis…</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>Loading analysis…</p>
       </div>
     );
   }
 
   return (
-    <div className={isDark ? "dark" : ""}>
-      <div className="min-h-screen bg-background">
-        <Header
-          userName="Trainee"
-          userRole="trainee"
-          isDark={isDark}
-          onThemeToggle={() => setIsDark(!isDark)}
-        />
+    <div className="min-h-screen bg-background">
+      <Header
+        userName="Trainee"
+        userRole="trainee"
+      />
         <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -121,7 +111,6 @@ export default function VideoAnalysisResult() {
             </pre>
           </Card>
         </main>
-      </div>
     </div>
   );
 }

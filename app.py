@@ -3,6 +3,7 @@ import uuid
 import base64
 import json
 import subprocess
+import requests
 from pathlib import Path
 from typing import List, Dict
 
@@ -10,6 +11,16 @@ import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from openai import OpenAI
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Load environment variables from .env file
+load_dotenv()
+
+# --- Supabase config ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # --- config ---
 UPLOAD_FOLDER = Path("uploads")
@@ -137,45 +148,109 @@ Do not include any explanation outside of JSON.
     return data
 
 
-def global_analysis_with_gpt(frame_analyses: List[Dict]) -> str:
+def global_analysis_with_gpt(frame_analyses: List[Dict]) -> Dict:
     """
     Send all per-frame JSONs to a text model for a global summary.
-    Returns markdown-ish feedback.
+    Returns a dictionary with structured metrics and feedback.
     """
     system_msg = (
         "You are an expert vocational trainer. "
-        "You give precise, structured, and encouraging feedback."
+        "You give precise, structured, and encouraging feedback. "
+        "You must return valid JSON only, no additional text."
     )
 
     user_prompt = """
 You are given JSON analyses for several frames from a trainee's task video.
 
-Using these, write a concise but detailed report that includes:
+Analyze the frame data and return a JSON object with the following structure:
 
-1. Overall skill assessment (1–2 sentences).
-2. Key strengths (bullet list).
-3. Recurring mistakes (bullet list).
-4. Safety issues to address (bullet list).
-5. 3–5 concrete next steps for practice (numbered list).
+{
+  "overallScore": <integer 0-100, overall performance score>,
+  "accuracy": <integer 0-100, how accurately the trainee performed the task>,
+  "stability": <integer 0-100, how stable and controlled the movements were>,
+  "toolUsage": <integer 0-100, how effectively the trainee used the tools>,
+  "completionTime": <string, estimated time to complete task in format like "2m 30s" or "N/A" if not applicable>,
+  "feedback": "<markdown text with: 1) Overall assessment (1-2 sentences), 2) Key strengths (bullet list), 3) Recurring mistakes (bullet list), 4) Safety issues (bullet list), 5) Next steps for practice (numbered list). Use clear markdown headings and bullets, but avoid using asterisks for emphasis - use plain text or bold markdown **text** only when necessary.>"
+}
 
-Use clear markdown headings and bullets.
+Calculate the metrics based on:
+- overallScore: Average of skill_score from frames, adjusted for consistency
+- accuracy: Based on error frequency and precision of movements
+- stability: Based on consistency of skill_score across frames
+- toolUsage: Based on proper tool handling and technique
+- completionTime: Estimate from frame timestamps or "N/A"
+
+Return ONLY the JSON object, no additional text or explanation.
 """.strip()
 
-    resp = client.chat.completions.create(
-        model=SUMMARY_MODEL,
-        messages=[
-            {"role": "system", "content": system_msg},
-            {
-                "role": "user",
-                "content": user_prompt
-                + "\n\nHere is the JSON data:\n\n"
-                + json.dumps(frame_analyses, indent=2),
-            },
-        ],
-        max_tokens=800,
-    )
+    try:
+        resp = client.chat.completions.create(
+            model=SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {
+                    "role": "user",
+                    "content": user_prompt
+                    + "\n\nHere is the JSON data:\n\n"
+                    + json.dumps(frame_analyses, indent=2),
+                },
+            ],
+            max_tokens=1200,
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        # Fallback if JSON mode is not supported
+        print(f"JSON mode not supported, falling back to text mode: {e}")
+        resp = client.chat.completions.create(
+            model=SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": system_msg + " Return ONLY valid JSON, no additional text."},
+                {
+                    "role": "user",
+                    "content": user_prompt
+                    + "\n\nHere is the JSON data:\n\n"
+                    + json.dumps(frame_analyses, indent=2),
+                },
+            ],
+            max_tokens=1200,
+        )
 
-    return resp.choices[0].message.content
+    raw = resp.choices[0].message.content
+    
+    try:
+        data = json.loads(raw)
+        
+        # Ensure all required fields exist with defaults
+        result = {
+            "overallScore": int(data.get("overallScore", 0)),
+            "accuracy": int(data.get("accuracy", 0)),
+            "stability": int(data.get("stability", 0)),
+            "toolUsage": int(data.get("toolUsage", 0)),
+            "completionTime": str(data.get("completionTime", "N/A")),
+            "feedback": str(data.get("feedback", "")),
+        }
+        
+        # Validate ranges
+        for key in ["overallScore", "accuracy", "stability", "toolUsage"]:
+            result[key] = max(0, min(100, result[key]))
+        
+        return result
+    except Exception as e:
+        print(f"Error parsing AI response: {e}")
+        print(f"Raw response: {raw}")
+        
+        # Fallback: calculate from frame analyses
+        skill_scores = [f.get("skill_score", 0) for f in frame_analyses if f.get("skill_score")]
+        avg_score = int(sum(skill_scores) / len(skill_scores)) if skill_scores else 0
+        
+        return {
+            "overallScore": avg_score,
+            "accuracy": avg_score,
+            "stability": avg_score,
+            "toolUsage": avg_score,
+            "completionTime": "N/A",
+            "feedback": raw if raw else "Analysis completed. Review the frame-by-frame details for specific feedback.",
+        }
 
 
 # ---------- routes ----------
@@ -186,11 +261,40 @@ def health():
     return jsonify({"status": "ok"})
 
 
+def download_video_from_supabase(storage_path: str, local_path: Path) -> bool:
+    """Download video from Supabase Storage to local path"""
+    try:
+        # Get signed URL (valid for 1 hour)
+        response = supabase.storage.from_("submission-videos").create_signed_url(
+            storage_path, 3600
+        )
+
+        if not response or "signedURL" not in response:
+            print(f"Failed to get signed URL for {storage_path}")
+            return False
+
+        signed_url = response["signedURL"]
+
+        # Download the file
+        file_response = requests.get(signed_url, timeout=60)
+        file_response.raise_for_status()
+
+        # Save to local path
+        with open(local_path, "wb") as f:
+            f.write(file_response.content)
+
+        print(f"✅ Downloaded video from Supabase: {storage_path} -> {local_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Error downloading video: {e}")
+        return False
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
     """
-    Accepts a single video file as form-data 'video'.
-    - Saves it to uploads/
+    Accepts JSON with 'videoPath' pointing to a video in Supabase Storage.
+    - Downloads video from Supabase
     - Extracts frames with ffmpeg
     - Runs GPT per-frame analysis
     - Runs GPT global summary
@@ -202,21 +306,23 @@ def upload():
         "frame_analyses": [...],
         "final_summary": str
       }
-
-    The React frontend will stash this in sessionStorage and navigate
-    to /video-analysis?job_id=...
     """
-    if "video" not in request.files:
-        return jsonify({"error": "No 'video' file part in request"}), 400
+    data = request.get_json()
 
-    file = request.files["video"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+    if not data or "videoPath" not in data:
+        return jsonify({"error": "No 'videoPath' in request"}), 400
 
+    storage_path = data["videoPath"]
     job_id = str(uuid.uuid4())
-    ext = Path(file.filename).suffix or ".mp4"
+    ext = Path(storage_path).suffix or ".mp4"
     video_path = UPLOAD_FOLDER / f"{job_id}{ext}"
-    file.save(video_path)
+
+    # Download video from Supabase
+    print(f"🎬 Downloading video from Supabase: {storage_path}")
+    if not download_video_from_supabase(storage_path, video_path):
+        return jsonify({"error": "Failed to download video from storage"}), 500
+
+    print(f"✅ Video downloaded: {video_path}")
 
     # Extract frames
     frames_dir = FRAMES_FOLDER / job_id
@@ -240,19 +346,26 @@ def upload():
         analysis["frame_file"] = str(frame_path)
         frame_analyses.append(analysis)
 
-    final_summary = global_analysis_with_gpt(frame_analyses)
+    global_analysis = global_analysis_with_gpt(frame_analyses)
 
-    # Option A: return everything in one JSON;
-    # React will store in sessionStorage and use job_id as the key.
+    # Return structured response with metrics and feedback
     payload = {
         "job_id": job_id,
         "video_filename": video_path.name,
         "frame_analyses": frame_analyses,
-        "final_summary": final_summary,
+        "final_summary": global_analysis.get("feedback", ""),  # Keep for backward compatibility
+        "metrics": {
+            "overallScore": global_analysis.get("overallScore", 0),
+            "accuracy": global_analysis.get("accuracy", 0),
+            "stability": global_analysis.get("stability", 0),
+            "toolUsage": global_analysis.get("toolUsage", 0),
+            "completionTime": global_analysis.get("completionTime", "N/A"),
+        },
+        "feedback": global_analysis.get("feedback", ""),
     }
     return jsonify(payload)
 
 
 if __name__ == "__main__":
-    # Flask dev server
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Flask dev server - using port 5002 to avoid conflicts with system processes
+    app.run(host="0.0.0.0", port=5002, debug=True)

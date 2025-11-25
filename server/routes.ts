@@ -146,13 +146,26 @@ export function registerRoutes(app: Express) {
   app.get("/api/submissions", requireAuth, async (req: Request, res: Response) => {
     try {
       const authUser = (req as any).user;
+      let submissions;
+
       if (authUser.role === "trainee") {
-        const submissions = await storage.getSubmissionsByUser(authUser.userId);
-        res.json(submissions);
+        submissions = await storage.getSubmissionsByUser(authUser.userId);
       } else {
-        const submissions = await storage.getAllSubmissions();
-        res.json(submissions);
+        submissions = await storage.getAllSubmissions();
       }
+
+      // Enrich with AI evaluation scores
+      const enrichedSubmissions = await Promise.all(
+        submissions.map(async (submission) => {
+          const aiEval = await storage.getAIEvaluation(submission.id);
+          return {
+            ...submission,
+            aiScore: aiEval?.overallScore || null,
+          };
+        })
+      );
+
+      res.json(enrichedSubmissions);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
