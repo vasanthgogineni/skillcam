@@ -33,17 +33,20 @@ async function triggerAIAnalysis(submission: any) {
       return;
     }
 
-    const videoPath = `${BUCKETS.SUBMISSION_VIDEOS}/${submission.videoPath}`;
+    const bucket = BUCKETS.SUBMISSION_VIDEOS;
+    const videoPath = submission.videoPath;
     console.log("Triggering AI analysis via Flask:", {
       videoPath,
       submissionId: submission.id,
       flaskUrl: FLASK_API_URL,
+      bucket,
     });
 
     const resp = await fetch(`${FLASK_API_URL}/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        bucket,
         videoPath,
         submissionId: submission.id,
       }),

@@ -291,13 +291,15 @@ def health():
     return jsonify({"status": "ok"})
 
 
-def download_video_from_supabase(storage_path: str, local_path: Path) -> bool:
+def download_video_from_supabase(bucket: str, storage_path: str, local_path: Path) -> bool:
     """Download video from Supabase Storage to local path"""
     try:
+        # Ensure we don't pass the bucket name twice
+        if storage_path.startswith(f"{bucket}/"):
+            storage_path = storage_path[len(bucket)+1 :]
+
         # Get signed URL (valid for 1 hour)
-        response = supabase.storage.from_("submission-videos").create_signed_url(
-            storage_path, 3600
-        )
+        response = supabase.storage.from_(bucket).create_signed_url(storage_path, 3600)
 
         if not response or "signedURL" not in response:
             print(f"Failed to get signed URL for {storage_path}")
@@ -353,8 +355,9 @@ def upload():
         video_path = UPLOAD_FOLDER / f"{job_id}{ext}"
 
         # Download video from Supabase
-        print(f"🎬 Downloading video from Supabase: {storage_path}")
-        if not download_video_from_supabase(storage_path, video_path):
+        bucket = data.get("bucket") or "submission-videos"
+        print(f"🎬 Downloading video from Supabase: {bucket}/{storage_path}")
+        if not download_video_from_supabase(bucket, storage_path, video_path):
             return jsonify({"error": "Failed to download video from storage"}), 500
 
         print(f"✅ Video downloaded: {video_path}")
