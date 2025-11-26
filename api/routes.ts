@@ -15,7 +15,11 @@ import {
   supabaseAdmin,
 } from "../server/supabaseStorage";
 
-const FLASK_API_URL = (process.env.FLASK_API_URL || "").replace(/\/+$/, "");
+// Flask AI service URL (prefer env, fallback to production Railway)
+const FLASK_API_URL = (
+  process.env.FLASK_API_URL ||
+  "https://skillcam-production.up.railway.app"
+).replace(/\/+$/, "");
 
 async function triggerAIAnalysis(submission: any) {
   try {
