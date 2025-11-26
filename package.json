@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "mkdir -p .tmp && TMPDIR=$(pwd)/.tmp PORT=5001 NODE_ENV=development tsx server/index.ts",
+    "dev": "mkdir -p .tmp && TMPDIR=$(pwd)/.tmp PORT=5002 NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "build:vercel": "vite build",
     "start": "NODE_ENV=production node dist/index.js",

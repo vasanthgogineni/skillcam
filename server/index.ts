@@ -93,7 +93,7 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5001 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5001', 10);
+  const port = parseInt(process.env.PORT || '5002', 10);
   
   // Create HTTP server first (needed for Vite HMR)
   const server = app.listen(port, "0.0.0.0", () => {
