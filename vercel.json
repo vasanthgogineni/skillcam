@@ -13,10 +13,12 @@
     }
   ],
   "functions": {
-    "api/*.ts": {
-      "includeFiles": "server/**"
+    "api/index.ts": {
+      "includeFiles": [
+        "api/routes.ts",
+        "server/**"
+      ]
     }
   }
 }
-
 

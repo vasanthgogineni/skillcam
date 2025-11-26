@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import serverless from "serverless-http";
-import { registerRoutes } from "./routes.js";
+import { registerRoutes } from "./routes";
 const app = express();
 
 declare module 'http' {
