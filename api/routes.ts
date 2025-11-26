@@ -12,6 +12,7 @@ import {
   deleteFile,
   BUCKETS,
   getFileMetadata,
+  supabaseAdmin,
 } from "../server/supabaseStorage";
 
 const supabaseUrl = process.env.SUPABASE_URL || "https://yrdmimdkhsdzqjjdajvv.supabase.co";
@@ -332,6 +333,44 @@ export function registerRoutes(app: Express) {
   });
 
   // File Upload Endpoints
+
+  // Get a signed upload URL for submission videos (client uploads directly to Supabase)
+  app.post("/api/uploads/submission-video-url", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const authUser = (req as any).user;
+      const { fileName, mimeType } = req.body || {};
+
+      if (!fileName) {
+        return res.status(400).json({ error: "fileName is required" });
+      }
+
+      const timestamp = Date.now();
+      const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const path = `${authUser.userId}/${timestamp}-${sanitizedFileName}`;
+
+      const { data, error } = await supabaseAdmin.storage
+        .from(BUCKETS.SUBMISSION_VIDEOS)
+        .createSignedUploadUrl(path, 60 * 30); // 30 minutes
+
+      if (error || !data?.signedUrl || !data?.token) {
+        console.error("Create signed upload URL error:", error);
+        return res.status(500).json({ error: error?.message || "Failed to create signed upload URL" });
+      }
+
+      res.json({
+        path,
+        signedUrl: data.signedUrl,
+        token: data.token,
+        expiresIn: data.expiresIn ?? 60 * 30,
+        mimeType: mimeType || "application/octet-stream",
+      });
+    } catch (error: any) {
+      console.error("=== Create signed upload URL error ===");
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ error: error.message || "Failed to create signed upload URL" });
+    }
+  });
 
   // Upload submission video
   app.post("/api/uploads/submission-video", requireAuth, upload.single("video"), async (req: Request, res: Response) => {

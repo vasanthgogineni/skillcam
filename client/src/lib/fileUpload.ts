@@ -1,4 +1,5 @@
 import { apiRequest, getAuthHeaders } from "./queryClient";
+import { supabase } from "./supabase";
 
 export interface UploadProgress {
   loaded: number;
@@ -97,7 +98,46 @@ export async function uploadSubmissionVideo(
   file: File,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
-  return uploadFile(file, "/api/uploads/submission-video", "video", onProgress);
+  // Request a signed upload URL from the API (small JSON payload)
+  const signResponse = await apiRequest("POST", "/api/uploads/submission-video-url", {
+    fileName: file.name,
+    mimeType: file.type,
+  });
+
+  const signData = await signResponse.json();
+  if (!signResponse.ok) {
+    throw new Error(signData?.error || "Failed to get upload URL");
+  }
+
+  const { path, token } = signData;
+  if (!path || !token) {
+    throw new Error("Upload failed: missing signed URL token");
+  }
+
+  // Upload directly to Supabase Storage using the signed token (bypasses Netlify body limits)
+  const { error } = await supabase.storage
+    .from("submission-videos")
+    .uploadToSignedUrl(path, file, {
+      token,
+      contentType: file.type || "video/mp4",
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(error.message || "Upload failed");
+  }
+
+  // Report completion progress
+  if (onProgress) {
+    onProgress({ loaded: file.size, total: file.size, percentage: 100 });
+  }
+
+  return {
+    path,
+    size: file.size,
+    mimeType: file.type,
+    originalName: file.name,
+  };
 }
 
 /**
