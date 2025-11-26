@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import serverless from "serverless-http";
 import { registerRoutes } from "./routes";
 const app = express();
+export { app };
 
 declare module 'http' {
   interface IncomingMessage {
