@@ -293,7 +293,23 @@ export default function UploadPage({
 
 
           {step === "upload" && (
-            <VideoUploadZone onFileSelect={handleFileSelect} maxSizeMB={250} />
+            <>
+              <VideoUploadZone onFileSelect={handleFileSelect} maxSizeMB={250} />
+              {uploadedFilePath && !isUploading && (
+                <div className="mt-4 flex items-center justify-between gap-3 p-4 border rounded-lg bg-muted/50">
+                  <div>
+                    <p className="font-medium">Upload saved</p>
+                    <p className="text-sm text-muted-foreground break-all">
+                      {uploadedFilePath}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleNewUpload}>Re-upload</Button>
+                    <Button onClick={() => setStep("metadata")}>Continue to details</Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {step === "metadata" && (
