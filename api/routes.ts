@@ -302,12 +302,12 @@ export function registerRoutes(app: Express) {
       console.log("Submission created:", JSON.stringify(submission, null, 2));
       console.log("Created submission videoPath:", submission.videoPath);
 
-      // Trigger AI analysis (await to ensure the request is dispatched before function ends)
-      try {
-        await triggerAIAnalysis(submission);
-      } catch (err) {
-        console.error("AI trigger failed, continuing to return submission:", err);
-      }
+      // Trigger AI analysis asynchronously to avoid Netlify timeout on submission
+      setTimeout(() => {
+        triggerAIAnalysis(submission).catch((err) =>
+          console.error("AI trigger failed:", err)
+        );
+      }, 0);
 
       res.json(submission);
     } catch (error: any) {
