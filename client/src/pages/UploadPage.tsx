@@ -136,11 +136,6 @@ export default function UploadPage({
       setUploadedFilePath(result.path);
       setIsUploading(false);
 
-      // 2️⃣ Move to metadata step
-      setTimeout(() => {
-        setStep("metadata");
-      }, 300);
-
     } catch (error: any) {
       setIsUploading(false);
       toast({
