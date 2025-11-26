@@ -30,7 +30,11 @@ async function triggerAIAnalysis(submission: any) {
     }
 
     const videoPath = `${BUCKETS.SUBMISSION_VIDEOS}/${submission.videoPath}`;
-    console.log("Triggering AI analysis via Flask:", { videoPath, submissionId: submission.id });
+    console.log("Triggering AI analysis via Flask:", {
+      videoPath,
+      submissionId: submission.id,
+      flaskUrl: FLASK_API_URL,
+    });
 
     const resp = await fetch(`${FLASK_API_URL}/upload`, {
       method: "POST",
@@ -41,10 +45,16 @@ async function triggerAIAnalysis(submission: any) {
       }),
     });
 
-    const payload = await resp.json().catch(() => ({}));
+    let payload: any = {};
+    try {
+      payload = await resp.json();
+    } catch (e) {
+      console.error("Failed to parse Flask response JSON");
+    }
+
     if (!resp.ok) {
       console.error("Flask AI analysis error:", payload);
-      return;
+      throw new Error(payload?.error || `Flask returned ${resp.status}`);
     }
 
     const metrics = payload.metrics || {};
@@ -68,6 +78,7 @@ async function triggerAIAnalysis(submission: any) {
     await storage.updateSubmissionStatus(submission.id, "ai-evaluated");
   } catch (error: any) {
     console.error("Failed to trigger/save AI analysis:", error);
+    throw error;
   }
 }
 
@@ -284,8 +295,12 @@ export function registerRoutes(app: Express) {
       console.log("Submission created:", JSON.stringify(submission, null, 2));
       console.log("Created submission videoPath:", submission.videoPath);
 
-      // Fire-and-forget AI analysis trigger (logs any errors)
-      void triggerAIAnalysis(submission);
+      // Trigger AI analysis (await to ensure the request is dispatched before function ends)
+      try {
+        await triggerAIAnalysis(submission);
+      } catch (err) {
+        console.error("AI trigger failed, continuing to return submission:", err);
+      }
 
       res.json(submission);
     } catch (error: any) {
