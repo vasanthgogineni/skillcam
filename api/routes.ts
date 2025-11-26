@@ -15,6 +15,62 @@ import {
   supabaseAdmin,
 } from "../server/supabaseStorage";
 
+const FLASK_API_URL = (process.env.FLASK_API_URL || "").replace(/\/+$/, "");
+
+async function triggerAIAnalysis(submission: any) {
+  try {
+    if (!FLASK_API_URL) {
+      console.warn("FLASK_API_URL not set; skipping AI analysis trigger");
+      return;
+    }
+
+    if (!submission.videoPath) {
+      console.warn("No videoPath on submission; skipping AI analysis trigger");
+      return;
+    }
+
+    const videoPath = `${BUCKETS.SUBMISSION_VIDEOS}/${submission.videoPath}`;
+    console.log("Triggering AI analysis via Flask:", { videoPath, submissionId: submission.id });
+
+    const resp = await fetch(`${FLASK_API_URL}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoPath,
+        submissionId: submission.id,
+      }),
+    });
+
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      console.error("Flask AI analysis error:", payload);
+      return;
+    }
+
+    const metrics = payload.metrics || {};
+    const frameAnalyses = payload.frame_analyses || [];
+
+    const evaluationData = {
+      submissionId: submission.id,
+      accuracy: Math.round(metrics.accuracy ?? 0),
+      stability: Math.round(metrics.stability ?? 0),
+      completionTime: String(metrics.completionTime ?? "unknown"),
+      toolUsage: Math.round(metrics.toolUsage ?? 0),
+      overallScore: Math.round(metrics.overallScore ?? 0),
+      feedback: payload.feedback || payload.final_summary || null,
+      analysisPoints: frameAnalyses
+        .map((f: any) => f.description)
+        .filter(Boolean),
+    };
+
+    console.log("Saving AI evaluation:", evaluationData);
+    await storage.createAIEvaluation(evaluationData as any);
+    await storage.updateSubmissionStatus(submission.id, "ai-evaluated");
+  } catch (error: any) {
+    console.error("Failed to trigger/save AI analysis:", error);
+  }
+}
+
 const supabaseUrl = process.env.SUPABASE_URL || "https://yrdmimdkhsdzqjjdajvv.supabase.co";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyZG1pbWRraHNkenFqamRhanZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MzgxMjksImV4cCI6MjA3OTUxNDEyOX0.gKCFOG9qMkBKal0RwUZohP8jsdSqWioDU2zx8Jw_JC4";
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -227,7 +283,10 @@ export function registerRoutes(app: Express) {
       
       console.log("Submission created:", JSON.stringify(submission, null, 2));
       console.log("Created submission videoPath:", submission.videoPath);
-      
+
+      // Fire-and-forget AI analysis trigger (logs any errors)
+      void triggerAIAnalysis(submission);
+
       res.json(submission);
     } catch (error: any) {
       console.error("Error creating submission:", error);
