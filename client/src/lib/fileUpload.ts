@@ -109,22 +109,23 @@ export async function uploadSubmissionVideo(
     throw new Error(signData?.error || "Failed to get upload URL");
   }
 
-  const { path, token } = signData;
-  if (!path || !token) {
-    throw new Error("Upload failed: missing signed URL token");
+  const { path, signedUrl, token } = signData;
+  if (!path || !signedUrl) {
+    throw new Error("Upload failed: missing signed upload URL");
   }
 
-  // Upload directly to Supabase Storage using the signed token (bypasses Netlify body limits)
-  const { error } = await supabase.storage
-    .from("submission-videos")
-    .uploadToSignedUrl(path, file, {
-      token,
-      contentType: file.type || "video/mp4",
-      upsert: false,
-    });
+  // Upload directly to Supabase Storage using the signed URL (avoids large bodies hitting Netlify)
+  const putRes = await fetch(signedUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
 
-  if (error) {
-    throw new Error(error.message || "Upload failed");
+  if (!putRes.ok) {
+    const text = await putRes.text();
+    throw new Error(text || `Upload failed with status ${putRes.status}`);
   }
 
   // Report completion progress
