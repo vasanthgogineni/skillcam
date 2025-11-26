@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import serverless from "serverless-http";
-import { registerRoutes } from "./routes.ts";
+import { registerRoutes } from "./routes.js";
 const app = express();
 
 declare module 'http' {
@@ -57,4 +57,3 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 // Wrap the Express app with serverless-http for Vercel
 export default serverless(app);
-
