@@ -16,7 +16,7 @@ import {
 } from "../server/supabaseStorage";
 
 const supabaseUrl = process.env.SUPABASE_URL || "https://yrdmimdkhsdzqjjdajvv.supabase.co";
-const supabaseKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyZG1pbWRraHNkenFqamRhanZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MzgxMjksImV4cCI6MjA3OTUxNDEyOX0.gKCFOG9qMkBKal0RwUZohP8jsdSqWioDU2zx8Jw_JC4";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyZG1pbWRraHNkenFqamRhanZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MzgxMjksImV4cCI6MjA3OTUxNDEyOX0.gKCFOG9qMkBKal0RwUZohP8jsdSqWioDU2zx8Jw_JC4";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -27,9 +27,12 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    const tokenPreview = `${token.slice(0, 12)}...${token.slice(-6)}`;
+    console.log("Auth header present; token length:", token.length, "preview:", tokenPreview);
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.error("Supabase auth.getUser error:", error?.message);
       return res.status(401).json({ error: "Invalid token" });
     }
 
