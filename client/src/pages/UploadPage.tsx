@@ -12,82 +12,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { uploadSubmissionVideo, getVideoDuration } from "@/lib/fileUpload";
 
-// ⭐ Flask AI Analysis - sends Supabase storage path
-async function runAiAnalysis(videoPath: string) {
-  // Use environment variable for Flask API URL, fallback to localhost for development
-  const flaskApiUrl = import.meta.env.VITE_FLASK_API_URL || "http://localhost:5002";
-  const apiUrl = `${flaskApiUrl}/upload`;
-  
-  const res = await fetch(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ videoPath }),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "AI analysis failed");
-  }
-  return await res.json();
-}
-
-// ⭐ Transform Flask AI response to database schema
-function transformAiResponseToDbFormat(flaskResponse: any, submissionId: string) {
-  const { frame_analyses, final_summary, metrics, feedback } = flaskResponse;
-
-  // Use structured metrics from AI if available, otherwise calculate from frames
-  let overallScore = 0;
-  let accuracy = 0;
-  let stability = 0;
-  let toolUsage = 0;
-  let completionTime = "N/A";
-  let feedbackText = feedback || final_summary || "";
-
-  if (metrics) {
-    // Use structured metrics from AI
-    overallScore = metrics.overallScore || 0;
-    accuracy = metrics.accuracy || 0;
-    stability = metrics.stability || 0;
-    toolUsage = metrics.toolUsage || 0;
-    completionTime = metrics.completionTime || "N/A";
-  } else {
-    // Fallback: calculate from frame analyses
-    const skillScores = frame_analyses.map((f: any) => f.skill_score || 0);
-    const avgScore = skillScores.length > 0
-      ? Math.round(skillScores.reduce((a: number, b: number) => a + b, 0) / skillScores.length)
-      : 0;
-    
-    overallScore = avgScore;
-    accuracy = avgScore;
-    stability = avgScore;
-    toolUsage = avgScore;
-  }
-
-  // Extract analysis points from frame errors and safety issues
-  const analysisPoints: string[] = [];
-  frame_analyses.forEach((frame: any) => {
-    if (frame.errors && frame.errors.length > 0) {
-      frame.errors.forEach((err: string) => analysisPoints.push(`Error: ${err}`));
-    }
-    if (frame.safety_issues && frame.safety_issues.length > 0) {
-      frame.safety_issues.forEach((issue: string) => analysisPoints.push(`Safety: ${issue}`));
-    }
-  });
-
-  return {
-    submissionId,
-    accuracy: Math.min(100, Math.max(0, accuracy)),
-    stability: Math.min(100, Math.max(0, stability)),
-    completionTime: completionTime,
-    toolUsage: Math.min(100, Math.max(0, toolUsage)),
-    overallScore: Math.min(100, Math.max(0, overallScore)),
-    feedback: feedbackText,
-    analysisPoints: analysisPoints.slice(0, 10), // Limit to top 10
-  };
-}
-
 interface UploadPageProps {
   userName?: string;
   userId?: string;
@@ -189,48 +113,14 @@ export default function UploadPage({
 
       toast({
         title: "Submission created!",
-        description: "Running AI analysis...",
+        description: "We'll run AI analysis in the background and update the dashboard.",
       });
 
       setStep("success");
 
-      // 2️⃣ Run AI analysis in background
-      (async () => {
-        try {
-          console.log("🤖 Starting AI analysis for video:", uploadedFilePath);
-          const aiJson = await runAiAnalysis(uploadedFilePath);
-
-          console.log("✅ AI analysis complete:", aiJson);
-
-          // Store in sessionStorage for VideoAnalysisResult page
-          sessionStorage.setItem(
-            `analysis_${aiJson.job_id}`,
-            JSON.stringify(aiJson)
-          );
-          setAnalysisJobId(aiJson.job_id);
-
-          // 3️⃣ Transform and save to database
-          const dbFormat = transformAiResponseToDbFormat(aiJson, submission.id);
-
-          console.log("💾 Saving AI evaluation to database:", dbFormat);
-          await apiRequest("POST", "/api/evaluations", dbFormat);
-
-          queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
-          queryClient.invalidateQueries({ queryKey: [`/api/submissions/${submission.id}/details`] });
-
-          toast({
-            title: "AI Analysis Complete!",
-            description: "Your submission has been evaluated by AI.",
-          });
-        } catch (err: any) {
-          console.error("AI analysis error:", err);
-          toast({
-            title: "AI analysis failed",
-            description: err.message || "The submission was saved but AI analysis failed.",
-            variant: "destructive",
-          });
-        }
-      })();
+      // Backend will trigger AI; refresh submissions list
+      queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/submissions/${submission.id}/details`] });
     } catch (error: any) {
       toast({
         title: "Upload failed",
@@ -290,18 +180,34 @@ export default function UploadPage({
           {step === "upload" && (
             <>
               <VideoUploadZone onFileSelect={handleFileSelect} maxSizeMB={250} />
-              {uploadedFilePath && !isUploading && (
-                <div className="mt-4 flex items-center justify-between gap-3 p-4 border rounded-lg bg-muted/50">
-                  <div>
-                    <p className="font-medium">Upload saved</p>
-                    <p className="text-sm text-muted-foreground break-all">
-                      {uploadedFilePath}
+              {(uploadedFile || uploadedFilePath) && (
+                <div className="mt-4 flex flex-col gap-3 p-4 border rounded-lg bg-muted/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Upload status</p>
+                      <p className="text-sm text-muted-foreground break-all">
+                        {uploadedFilePath
+                          ? `Ready for details: ${uploadedFilePath}`
+                          : isUploading
+                          ? "Uploading to storage…"
+                          : "Upload in progress, waiting for path…"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={handleNewUpload}>Re-upload</Button>
+                      <Button
+                        onClick={() => setStep("metadata")}
+                        disabled={!uploadedFilePath || isUploading}
+                      >
+                        Continue to details
+                      </Button>
+                    </div>
+                  </div>
+                  {!uploadedFilePath && isUploading && (
+                    <p className="text-xs text-muted-foreground">
+                      If this stays here, refresh and try again. The button will enable once we receive the storage path.
                     </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleNewUpload}>Re-upload</Button>
-                    <Button onClick={() => setStep("metadata")}>Continue to details</Button>
-                  </div>
+                  )}
                 </div>
               )}
             </>
@@ -335,17 +241,9 @@ export default function UploadPage({
                   Upload Another
                 </Button>
 
-                {/* ⭐ Show the AI button only when jobId is ready */}
-                {analysisJobId && (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      setLocation(`/video-analysis?job_id=${analysisJobId}`)
-                    }
-                  >
-                    View AI Analysis
-                  </Button>
-                )}
+                <Button variant="outline" onClick={() => setLocation("/dashboard")}>
+                  Go to Dashboard
+                </Button>
               </div>
             </Card>
           )}
