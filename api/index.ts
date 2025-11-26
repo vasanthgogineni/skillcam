@@ -6,7 +6,7 @@ import express, {
 } from "express";
 import serverless from "serverless-http";
 import multer from "multer";
-import { storage } from "./storage";
+import { storage } from "../server/storage.ts";
 import {
   insertAIEvaluationSchema,
   insertWaitlistEntrySchema,
@@ -17,7 +17,7 @@ import {
   getSignedUrl,
   deleteFile,
   BUCKETS,
-} from "./supabaseStorage";
+} from "../server/supabaseStorage";
 
 const app = express();
 
