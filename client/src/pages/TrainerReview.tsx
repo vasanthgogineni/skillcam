@@ -50,13 +50,19 @@ export default function TrainerReview({
   const [trainerScore, setTrainerScore] = useState("");
   const [nextSteps, setNextSteps] = useState("");
 
-  const { data: submissions = [], isLoading } = useQuery<Submission[]>({
+  const { data: submissions = [], isLoading, error, refetch } = useQuery<Submission[]>({
     queryKey: ["/api/submissions"],
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 2,
   });
 
   const { data: submissionDetails, isLoading: isLoadingDetails } = useQuery<SubmissionDetails>({
     queryKey: [`/api/submissions/${selectedSubmissionId}/details`],
     enabled: !!selectedSubmissionId,
+    staleTime: 0,
+    retry: 1,
   });
 
   const submitFeedbackMutation = useMutation({
@@ -210,6 +216,13 @@ export default function TrainerReview({
             <h2 className="text-lg font-heading font-semibold mb-4">
               Submissions to Review
             </h2>
+
+            {error && (
+              <div className="text-sm text-destructive mb-3">
+                Failed to load submissions.{" "}
+                <button className="underline" onClick={() => refetch()}>Retry</button>
+              </div>
+            )}
 
             <div className="space-y-3 mb-4">
               <div className="relative">

@@ -151,6 +151,7 @@ def analyze_frame_with_gpt(frame_path: Path, timestamp_sec: float) -> Dict:
 
     prompt = f"""
 You are analyzing a single frame from a vocational training video.
+If the frame appears to show a screw tightening task (using a screwdriver, drill/driver, or similar), set "skill_score" between 70 and 90 based on the visible quality of the technique. Focus on what needs improvement: grip, alignment/angle of the screw/driver, and safety (e.g., gloves). Keep feedback concise—avoid filler unless an issue is clearly visible. If the technique looks fine, say so briefly. Do NOT give any feedback about wearing goggles/eye protection.
 
 Return a *JSON object only* with the following keys:
 

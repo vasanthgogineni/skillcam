@@ -64,6 +64,29 @@ export default function FeedbackPage({
     enabled: !!submissionId,
   });
 
+  const handleDownload = async () => {
+    try {
+      if (!details?.submission) return;
+      const payload = {
+        submission: details.submission,
+        aiEvaluation: details.aiEvaluation,
+        trainerFeedback: details.trainerFeedback,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const name = details.submission.taskName || "report";
+      a.download = `${name.replace(/\s+/g, "_")}_report.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download report", err);
+    }
+  };
+
   const getStatusDisplay = (status: string) => {
     const statusMap = {
       pending: { text: "Pending", color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30" },
@@ -92,7 +115,7 @@ export default function FeedbackPage({
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard
             </Button>
-            <Button variant="outline" data-testid="button-download-report">
+            <Button variant="outline" data-testid="button-download-report" onClick={handleDownload}>
               <Download className="h-4 w-4 mr-2" />
               Download Report
             </Button>

@@ -29,6 +29,15 @@ export default function TraineeDashboard({
   const totalUploads = submissions.length;
   const pendingReview = submissions.filter(s => s.status === "pending" || s.status === "ai-evaluated").length;
   const completed = submissions.filter(s => s.status === "approved" || s.status === "trainer-reviewed").length;
+
+  const scored = submissions.filter((s) => typeof (s as any).aiScore === "number");
+  const averageScore =
+    scored.length > 0
+      ? Math.round(
+          scored.reduce((sum, s) => sum + ((s as any).aiScore ?? 0), 0) /
+            scored.length
+        )
+      : null;
   
   const stats = [
     {
@@ -38,7 +47,7 @@ export default function TraineeDashboard({
     },
     {
       label: "Average Score",
-      value: "N/A",
+      value: averageScore === null ? "N/A" : `${averageScore}`,
       icon: <TrendingUp className="h-5 w-5 text-green-600" />,
     },
     {
@@ -65,7 +74,7 @@ export default function TraineeDashboard({
       title: "View Progress Report",
       description: "Analyze your performance trends",
       icon: <BarChart3 className="h-6 w-6 text-primary" />,
-      onClick: () => console.log("View progress"),
+      onClick: () => setLocation("/progress"),
       testId: "card-view-progress",
     },
   ];

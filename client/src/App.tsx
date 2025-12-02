@@ -14,6 +14,7 @@ import FeedbackPage from "@/pages/FeedbackPage";
 import TrainerReview from "@/pages/TrainerReview";
 import NotFound from "@/pages/not-found";
 import VideoAnalysisResult from "@/pages/VideoAnalysisResult";
+import ProgressReport from "@/pages/ProgressReport";
 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AuthUser } from "./lib/auth";
@@ -187,6 +188,25 @@ function Router() {
           <UploadPage
             userName={currentUser.username}
             userId={currentUser.id}
+            onLogout={handleLogout}
+          />
+        ) : (
+          <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+            <p>Please log in as a trainee to access this page.</p>
+            <button
+              onClick={() => setLocation("/login")}
+              className="text-primary underline"
+            >
+              Go to Login
+            </button>
+          </div>
+        )}
+      </Route>
+
+      <Route path="/progress">
+        {currentUser?.role === "trainee" ? (
+          <ProgressReport
+            userName={currentUser.username}
             onLogout={handleLogout}
           />
         ) : (

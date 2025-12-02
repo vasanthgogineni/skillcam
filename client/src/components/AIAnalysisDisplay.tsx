@@ -295,18 +295,63 @@ export default function AIAnalysisDisplay({ evaluation, compact = false }: AIAna
             <Badge variant="secondary" className="ml-auto">{evaluation.analysisPoints.length} observations</Badge>
           </div>
           <div className="grid gap-2">
-            {evaluation.analysisPoints.slice(0, 10).map((point, index) => (
-              <div
-                key={index}
-                className={`text-sm p-3 rounded-lg ${
-                  point.toLowerCase().includes('error')
-                    ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-900 dark:text-orange-100'
-                    : 'bg-blue-50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-100'
-                }`}
-              >
-                {stripMarkdownAsterisks(point)}
-              </div>
-            ))}
+            {evaluation.analysisPoints.slice(0, 10).map((point, index) => {
+              // Try to parse JSON if the point looks like JSON from the model
+              let parsed: any = null;
+              try {
+                const trimmed = point.trim();
+                if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                  parsed = JSON.parse(trimmed);
+                } else if (trimmed.startsWith("```")) {
+                  const inner = trimmed.replace(/```json|```/g, "").trim();
+                  parsed = JSON.parse(inner);
+                }
+              } catch (_err) {
+                parsed = null;
+              }
+
+              if (parsed) {
+                return (
+                  <div key={index} className="rounded-lg border p-3 bg-muted/50">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                      <span>t={parsed.timestamp ?? "–"}s</span>
+                      {typeof parsed.skill_score === "number" && (
+                        <span className="font-semibold text-primary">Score: {parsed.skill_score}</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium mb-1">{parsed.description || "No description"}</p>
+                    {(parsed.errors || []).length > 0 && (
+                      <ul className="text-sm text-orange-800 dark:text-orange-200 list-disc ml-4 space-y-1">
+                        {parsed.errors.map((err: string, i: number) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {(parsed.safety_issues || []).length > 0 && (
+                      <ul className="text-sm text-red-800 dark:text-red-200 list-disc ml-4 space-y-1 mt-1">
+                        {parsed.safety_issues.map((issue: string, i: number) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              }
+
+              // Fallback: plain text pill
+              return (
+                <div
+                  key={index}
+                  className={`text-sm p-3 rounded-lg ${
+                    point.toLowerCase().includes('error')
+                      ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-900 dark:text-orange-100'
+                      : 'bg-blue-50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-100'
+                  }`}
+                >
+                  {stripMarkdownAsterisks(point)}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
