@@ -6,6 +6,7 @@ import subprocess
 import requests
 import shutil
 import atexit
+import time
 from pathlib import Path
 from typing import List, Dict
 
@@ -30,8 +31,10 @@ FRAMES_FOLDER = Path("frames")
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 FRAMES_FOLDER.mkdir(exist_ok=True)
 
-FPS = 1
-MAX_FRAMES_TO_ANALYZE = 10
+FPS = 0.5  # lower fps to reduce frame count and token usage
+MAX_FRAMES_TO_ANALYZE = 6  # fewer frames analyzed to cut cost/TPM
+MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", 5))
+RETRY_BASE_DELAY = float(os.environ.get("OPENAI_RETRY_BASE_DELAY", 0.8))
 
 # Models – tweak if you want
 VISION_MODEL = "gpt-4o-mini"
@@ -113,6 +116,32 @@ def encode_image_to_data_url(path: Path) -> str:
     return f"data:image/jpeg;base64,{b64}"
 
 
+def chat_with_retry(model: str, messages: List[Dict], **kwargs):
+    """
+    Call OpenAI with basic exponential backoff on rate limits.
+    """
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return client.chat.completions.create(
+                model=model,
+                messages=messages,
+                **kwargs,
+            )
+        except Exception as e:
+            last_err = e
+            msg = str(e).lower()
+            is_rate = "rate limit" in msg or "429" in msg or "tpm" in msg
+            if is_rate and attempt < MAX_RETRIES:
+                delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                print(f"⚠️ OpenAI rate limit (attempt {attempt}/{MAX_RETRIES}), retrying in {delay:.2f}s")
+                time.sleep(delay)
+                continue
+            print(f"❌ OpenAI error (attempt {attempt}): {e}")
+            raise e
+    raise last_err
+
+
 def analyze_frame_with_gpt(frame_path: Path, timestamp_sec: float) -> Dict:
     """
     Send a single frame to a vision-capable GPT model.
@@ -134,7 +163,7 @@ Return a *JSON object only* with the following keys:
 Do not include any explanation outside of JSON.
 """.strip()
 
-    resp = client.chat.completions.create(
+    resp = chat_with_retry(
         model=VISION_MODEL,
         messages=[
             {
@@ -214,7 +243,7 @@ Return ONLY the JSON object, no additional text or explanation.
 """.strip()
 
     try:
-        resp = client.chat.completions.create(
+        resp = chat_with_retry(
             model=SUMMARY_MODEL,
             messages=[
                 {"role": "system", "content": system_msg},
@@ -229,9 +258,9 @@ Return ONLY the JSON object, no additional text or explanation.
             response_format={"type": "json_object"},
         )
     except Exception as e:
-        # Fallback if JSON mode is not supported
-        print(f"JSON mode not supported, falling back to text mode: {e}")
-        resp = client.chat.completions.create(
+        # Fallback if JSON mode is not supported or rate-limited
+        print(f"JSON mode not supported or retry exhausted, falling back to text mode: {e}")
+        resp = chat_with_retry(
             model=SUMMARY_MODEL,
             messages=[
                 {"role": "system", "content": system_msg + " Return ONLY valid JSON, no additional text."},
