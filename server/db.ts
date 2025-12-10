@@ -6,8 +6,8 @@ import * as schema from "@shared/schema";
 const {
   DATABASE_URL,
   DB_POOL_MAX = "10",
-  DB_IDLE_TIMEOUT = "10000",
-  DB_CONNECT_TIMEOUT = "10",
+  DB_IDLE_TIMEOUT = "30000", // ms
+  DB_CONNECT_TIMEOUT = "30",  // seconds
 } = process.env;
 
 if (!DATABASE_URL) {
@@ -19,7 +19,9 @@ const client = postgres(DATABASE_URL, {
   max: Number(DB_POOL_MAX),
   idle_timeout: Number(DB_IDLE_TIMEOUT),
   connect_timeout: Number(DB_CONNECT_TIMEOUT),
-  ssl: 'require', // Use 'require' for Supabase - requires SSL but doesn't verify certificate
+  keep_alive: 1,
+  keep_alive_idle: 10,
+  ssl: "require", // Use 'require' for Supabase - requires SSL but doesn't verify certificate
 });
 
 export const db = drizzle(client, { schema });
